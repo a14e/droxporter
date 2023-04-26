@@ -1,10 +1,7 @@
-mod do_json_protocol;
-mod do_client;
-mod config;
 mod jobs_scheduler;
-mod key_manager;
 mod droplet_store;
-mod rate_limiter;
+mod config;
+mod client;
 
 // because it breaks debugger =(
 #[cfg(not(debug_assertions))]

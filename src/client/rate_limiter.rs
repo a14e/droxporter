@@ -59,7 +59,7 @@ impl RateLimiter {
                current_time: usize) -> Self {
         let multiplication_ratio = limit as f32 / limit_interval as f32;
         Self {
-            remaining: limit,
+            remaining: 0,
             limit,
             limit_time_interval: limit_interval,
             last_attempt_time: current_time,
@@ -118,6 +118,12 @@ impl ToMillis for u64 {
     }
 }
 
+impl ToMillis for i32 {
+    fn to_millis(&self) -> usize {
+        *self as usize
+    }
+}
+
 impl ToMillis for DateTime<Utc> {
     fn to_millis(&self) -> usize {
         DateTime::timestamp_millis(&self) as usize
@@ -127,5 +133,104 @@ impl ToMillis for DateTime<Utc> {
 impl ToMillis for Duration {
     fn to_millis(&self) -> usize {
         self.num_milliseconds() as usize
+    }
+}
+
+
+#[cfg(test)]
+mod rate_limiter {
+    use crate::client::rate_limiter::RateLimiter;
+
+    #[test]
+    fn pass_values_under_limit() {
+        let limiter = RateLimiter::new(10, 10, 0);
+        assert!(limiter.can_acquire(10))
+    }
+
+    #[test]
+    fn dont_pass_on_exceeded_limit() {
+        let mut limiter = RateLimiter::new(10, 10, 0);
+        for _ in 0..100 {
+            let _ = limiter.acquire(10);
+        }
+        assert!(!limiter.can_acquire(10))
+    }
+
+    #[test]
+    fn pass_exceeded_after_timeout() {
+        let mut limiter = RateLimiter::new(10, 10, 0);
+        for _ in 0..100 {
+            let _ = limiter.acquire(10);
+        }
+        assert!(limiter.can_acquire(20))
+    }
+}
+
+
+#[cfg(test)]
+mod multi_limits {
+    use crate::client::rate_limiter::MultiLimits;
+
+    #[test]
+    fn pass_values_under_limit() {
+        let limiter = MultiLimits::new(
+            [
+                (10, 10),
+                 (100, 100)
+            ], 0);
+        assert!(limiter.can_acquire(2))
+    }
+
+    #[test]
+    fn dont_pass_on_exceeded_small_limit() {
+        let mut limiter = MultiLimits::new(
+        [
+            (10, 10),
+            (100, 100)
+        ], 0);
+        for _ in 0..100 {
+            let _ = limiter.acquire(10);
+        }
+        assert!(!limiter.can_acquire(10))
+    }
+
+
+    #[test]
+    fn pass_exceeded_after_timeout_small_limit() {
+        let mut limiter = MultiLimits::new(
+            [
+                (10, 10),
+                (100, 100)
+            ], 0);
+        for _ in 0..100 {
+            let _ = limiter.acquire(10);
+        }
+        assert!(limiter.can_acquire(20))
+    }
+
+    #[test]
+    fn dont_pass_on_exceeded_big_limit() {
+        let mut limiter = MultiLimits::new(
+            [
+                (10, 10),
+                (100, 1000)
+            ], 0);
+        for i in 0..=1000 {
+            let _ = limiter.acquire(i);
+        }
+        assert!(!limiter.can_acquire(1000))
+    }
+
+    #[test]
+    fn pass_exceeded_after_timeout_big_limit() {
+        let mut limiter = MultiLimits::new(
+            [
+                (10, 10),
+                (100, 1000)
+            ], 0);
+        for i in 0..=100 {
+            let _ = limiter.acquire(i * 10);
+        }
+        assert!(limiter.can_acquire(1010))
     }
 }

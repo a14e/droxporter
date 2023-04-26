@@ -1,26 +1,8 @@
 use std::env;
 use regex::{Captures, Regex};
-use serde::Deserialize;
 use tracing::{error, info};
 
-#[derive(Deserialize, Clone)]
-pub struct ClientConfig {
-    pub token: String,
-    pub list_droplets_url: String,
-    pub metrics_base_url: String,
-
-}
-#[derive(Deserialize, Clone)]
-pub struct MetricsManagerConfigs {
-
-}
-
-#[derive(Deserialize, Clone)]
-pub struct KeyManagerConfigs {
-
-}
-
-fn expand_env_var(raw_config: &str) -> anyhow::Result<String> {
+pub fn expand_env_var(raw_config: &str) -> anyhow::Result<String> {
     // Regular expression composed and explained by Chat GPT
     //
     //  The regular expression r"\$\{([a-zA-Z_][0-9a-zA-Z_]*)(?::([^}]*))?\}" is broken down into the following parts:

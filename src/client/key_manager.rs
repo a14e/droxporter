@@ -2,19 +2,19 @@ use ahash::HashMap;
 use std::sync::Arc;
 use chrono::{Duration, Utc};
 use parking_lot::Mutex;
-use crate::config::KeyManagerConfigs;
-use crate::rate_limiter::MultiLimits;
+use crate::client::rate_limiter::MultiLimits;
+use crate::config::config_model::MetricsConfig;
 
 
 pub trait KeyManager {
     fn acquire_key(&self,
-                   request_type: RequestType) -> anyhow::Result<Key>;
+                   request_type: KeyType) -> anyhow::Result<Key>;
 }
 
 // struct responsible for keys, state of keys and rate limiting
 #[derive(Clone)]
 pub struct KeyManagerImpl {
-    configs: KeyManagerConfigs,
+    configs: MetricsConfig,
     state: Arc<Mutex<KeyManagerState>>,
 }
 
@@ -32,7 +32,7 @@ fn create_key_limit() -> KeyLimit {
 }
 
 struct KeyManagerState {
-    keys: HashMap<RequestType, Vec<Key>>,
+    keys: HashMap<KeyType, Vec<Key>>,
     settings: HashMap<Key, KeyLimit>,
 }
 
@@ -40,26 +40,20 @@ struct KeyManagerState {
 type Key = String;
 
 #[derive(PartialEq, Eq, Hash, Copy, Clone)]
-pub enum RequestType {
+pub enum KeyType {
     Default,
     Droplets,
     Bandwidth,
     Cpu,
-    FileSystemFree,
-    FileSystemSize,
-    CachedMemory,
-    FreeMemory,
-    TotalMemory,
-    AvailableTotalMemory,
-    Load1,
-    Load5,
-    Load15,
+    FileSystem,
+    Memory,
+    Load,
 }
 
 
 impl KeyManager for KeyManagerImpl {
     fn acquire_key(&self,
-                   request_type: RequestType) -> anyhow::Result<String> {
+                   request_type: KeyType) -> anyhow::Result<String> {
         self.state.lock().acquire_key(request_type)
     }
 }
@@ -67,12 +61,12 @@ impl KeyManager for KeyManagerImpl {
 
 impl KeyManagerState {
     fn acquire_key(&mut self,
-                   request_type: RequestType) -> anyhow::Result<String> {
+                   request_type: KeyType) -> anyhow::Result<String> {
         let current_time = Utc::now();
 
         let key_result = match self.keys.get(&request_type) {
-            None if request_type == RequestType::Default => anyhow::bail!("Api Key Not Found"),
-            None => self.acquire_key(RequestType::Default),
+            None if request_type == KeyType::Default => anyhow::bail!("Api Key Not Found"),
+            None => self.acquire_key(KeyType::Default),
             Some(keys) => {
                 let available_key = keys.iter()
                     .flat_map(|k|
@@ -80,8 +74,8 @@ impl KeyManagerState {
                             .map(|settings| (k, settings))
                     ).find(|(_, x)| x.can_acquire(current_time));
                 match available_key {
-                    None if request_type == RequestType::Default => anyhow::bail!("Available Api Key Not Found"),
-                    None => self.acquire_key(RequestType::Default),
+                    None if request_type == KeyType::Default => anyhow::bail!("Available Api Key Not Found"),
+                    None => self.acquire_key(KeyType::Default),
                     Some((key, _)) => Ok(key.clone())
                 }
             }
@@ -93,5 +87,38 @@ impl KeyManagerState {
         }
 
         Ok(key)
+    }
+}
+
+#[cfg(test)]
+mod key_manager {
+    #[test]
+    fn acquire_key() {
+        todo!()
+    }
+
+    #[test]
+    fn fallback_to_second_key_on_limits() {
+        todo!()
+    }
+
+    #[test]
+    fn fallback_to_default_if_not_found() {
+        todo!()
+    }
+
+    #[test]
+    fn fallback_to_default_on_limits() {
+        todo!()
+    }
+
+    #[test]
+    fn fail_if_no_key_found() {
+        todo!()
+    }
+
+    #[test]
+    fn fail_on_rate_limit() {
+        todo!()
     }
 }

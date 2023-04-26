@@ -1,10 +1,9 @@
-
 use async_trait::async_trait;
 use chrono::Utc;
 use url::Url;
-use crate::config::ClientConfig;
-use crate::do_json_protocol::{DataResponse, ListDropletsResponse};
-use crate::key_manager::{KeyManager, KeyManagerImpl, RequestType};
+use crate::client::do_json_protocol::{DataResponse, ListDropletsResponse};
+use crate::client::key_manager::{KeyManager, KeyType};
+use crate::config::config_model::AppSettings;
 
 #[async_trait]
 pub trait DigitalOceanClient {
@@ -89,23 +88,22 @@ pub enum LoadType {
 
 
 #[derive(mydi::Component, Clone)]
-pub struct DigitalOceanClientImpl {
-    config: ClientConfig,
+pub struct DigitalOceanClientImpl<KeyManager: 'static> {
+    config: &'static AppSettings,
     client: reqwest::Client,
-    token_manager: KeyManagerImpl
+    token_manager: KeyManager,
 }
 
 
-
-impl DigitalOceanClientImpl {
+impl<T: KeyManager> DigitalOceanClientImpl<T> {
     async fn base_metrics_request(&self,
-                                  key_type: RequestType,
+                                  request_type: RequestType,
                                   host_id: u64,
                                   start: chrono::DateTime<Utc>,
                                   end: chrono::DateTime<Utc>) -> anyhow::Result<DataResponse> {
         let mut url = {
-            let base = self.config.metrics_base_url.as_str();
-            let suffix = Self::request_type_to_suffix(key_type)?;
+            let base = self.config.metrics.base_url.as_str();
+            let suffix = request_type.to_request_suffix()?;
             let str = format!("{base}/{suffix}"); // or path_segments_mut?
             Url::parse(str.as_str())?
         };
@@ -116,7 +114,7 @@ impl DigitalOceanClientImpl {
             .append_pair("end", end.timestamp().to_string().as_str());
 
 
-        let bearer = self.token_manager.acquire_key(key_type)?;
+        let bearer = self.token_manager.acquire_key(request_type.into())?;
 
         let res = self.client
             .get(url)
@@ -129,8 +127,28 @@ impl DigitalOceanClientImpl {
         Ok(res)
     }
 
-    fn request_type_to_suffix(key_type: RequestType) -> anyhow::Result< & 'static str> {
-        match key_type {
+}
+
+
+#[derive(PartialEq, Eq, Hash, Copy, Clone)]
+pub enum RequestType {
+    Droplets,
+    Bandwidth,
+    Cpu,
+    FileSystemFree,
+    FileSystemSize,
+    CachedMemory,
+    FreeMemory,
+    TotalMemory,
+    AvailableTotalMemory,
+    Load1,
+    Load5,
+    Load15,
+}
+
+impl RequestType {
+    pub fn to_request_suffix(self) -> anyhow::Result<&'static str> {
+        match self {
             RequestType::Bandwidth => Ok("bandwidth"),
             RequestType::Cpu => Ok("cpu"),
             RequestType::FileSystemFree => Ok("filesystem_free"),
@@ -147,17 +165,36 @@ impl DigitalOceanClientImpl {
     }
 }
 
+impl Into<KeyType> for RequestType {
+    fn into(self) -> KeyType {
+        match self {
+            RequestType::Droplets => KeyType::Droplets,
+            RequestType::Bandwidth => KeyType::Bandwidth,
+            RequestType::Cpu => KeyType::Cpu,
+            RequestType::FileSystemFree => KeyType::FileSystem,
+            RequestType::FileSystemSize => KeyType::FileSystem,
+            RequestType::CachedMemory => KeyType::Memory,
+            RequestType::FreeMemory => KeyType::Memory,
+            RequestType::TotalMemory => KeyType::Memory,
+            RequestType::AvailableTotalMemory => KeyType::Memory,
+            RequestType::Load1 => KeyType::Load,
+            RequestType::Load5 => KeyType::Load,
+            RequestType::Load15 => KeyType::Load,
+        }
+    }
+}
+
 #[async_trait]
-impl DigitalOceanClient for DigitalOceanClientImpl {
+impl<T: KeyManager + Sync + Send> DigitalOceanClient for DigitalOceanClientImpl<T> {
     async fn list_droplets(&self,
                            per_page: u64,
                            page: u64) -> anyhow::Result<ListDropletsResponse> {
-        let mut url = Url::parse(self.config.list_droplets_url.as_str())?;
+        let mut url = Url::parse(self.config.droplets.url.as_str())?;
         url.query_pairs_mut()
             .append_pair("per_page", per_page.to_string().as_str())
             .append_pair("page", page.to_string().as_str());
 
-        let bearer = self.token_manager.acquire_key(RequestType::Droplets)?;
+        let bearer = self.token_manager.acquire_key(RequestType::Droplets.into())?;
 
         let res = self.client
             .get(url)
@@ -177,7 +214,7 @@ impl DigitalOceanClient for DigitalOceanClientImpl {
                            start: chrono::DateTime<Utc>,
                            end: chrono::DateTime<Utc>) -> anyhow::Result<DataResponse> {
         let mut url = {
-            let base = self.config.metrics_base_url.as_str();
+            let base = self.config.metrics.base_url.as_str();
             let str = format!("{base}/bandwidth"); // or path_segments_mut?
             Url::parse(str.as_str())?
         };
@@ -192,9 +229,11 @@ impl DigitalOceanClient for DigitalOceanClientImpl {
             .append_pair("start", start.timestamp().to_string().as_str())
             .append_pair("end", end.timestamp().to_string().as_str());
 
+        let bearer = self.token_manager.acquire_key(RequestType::Bandwidth.into())?;
+
         let res = self.client
             .get(url)
-            .bearer_auth(self.config.token.as_str())
+            .bearer_auth(bearer.as_str())
             .send()
             .await?
             .json::<DataResponse>()
