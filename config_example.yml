@@ -22,12 +22,12 @@ metrics:
     enabled: true
   cpu:
     keys: ["123"]
-    interval: 10s
+    interval: 15s
     enabled: true
   filesystem:
     types: [ free, size ]
     keys: ["123"]
-    interval: 10s
+    interval: 60s
     enabled: true
   memory:
     types: [ cached, free, total, available ]

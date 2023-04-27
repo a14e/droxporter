@@ -1,7 +1,6 @@
-mod jobs_scheduler;
-mod droplet_store;
 mod config;
 mod client;
+mod metrics;
 
 // because it breaks debugger =(
 #[cfg(not(debug_assertions))]

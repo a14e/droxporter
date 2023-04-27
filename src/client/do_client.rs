@@ -61,26 +61,26 @@ pub trait DigitalOceanClient {
 
     async fn get_load(&self,
                       host_id: u64,
-                      load_type: LoadType,
+                      load_type: ClientLoadType,
                       start: chrono::DateTime<Utc>,
                       end: chrono::DateTime<Utc>) -> anyhow::Result<DataResponse>;
 }
 
 
-#[derive(Eq, PartialEq)]
+#[derive(Eq, PartialEq, Copy, Clone)]
 pub enum NetworkDirection {
     Inbound,
     Outbound,
 }
 
-#[derive(Eq, PartialEq)]
+#[derive(Eq, PartialEq, Copy, Clone)]
 pub enum NetworkInterface {
     Public,
     Private,
 }
 
-#[derive(Eq, PartialEq)]
-pub enum LoadType {
+#[derive(Eq, PartialEq, Copy, Clone)]
+pub enum ClientLoadType {
     Load1,
     Load5,
     Load15,
@@ -329,13 +329,13 @@ impl<T: KeyManager + Sync + Send> DigitalOceanClient for DigitalOceanClientImpl<
 
     async fn get_load(&self,
                       host_id: u64,
-                      load_type: LoadType,
+                      load_type: ClientLoadType,
                       start: chrono::DateTime<Utc>,
                       end: chrono::DateTime<Utc>) -> anyhow::Result<DataResponse> {
         let request_type = match load_type {
-            LoadType::Load1 => RequestType::Load1,
-            LoadType::Load5 => RequestType::Load5,
-            LoadType::Load15 => RequestType::Load15,
+            ClientLoadType::Load1 => RequestType::Load1,
+            ClientLoadType::Load5 => RequestType::Load5,
+            ClientLoadType::Load15 => RequestType::Load15,
         };
 
         self.base_metrics_request(

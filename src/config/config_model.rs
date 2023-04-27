@@ -1,7 +1,8 @@
 use serde::Deserialize;
+
 pub type Key = String;
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Default)]
 #[serde(rename_all = "kebab-case")]
 pub struct AppSettings {
     #[serde(default)]
@@ -10,19 +11,12 @@ pub struct AppSettings {
     pub metrics: MetricsConfig,
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Default)]
 #[serde(rename_all = "kebab-case")]
 pub struct MetricsConfig {
-    #[serde(default)]
-    pub default_keys: Vec<String>,
-    pub metrics: MetricsSettings,
     #[serde(default = "default_base_url")]
     pub base_url: String,
-}
 
-#[derive(Deserialize, Clone)]
-#[serde(rename_all = "kebab-case")]
-pub struct MetricsSettings {
     pub bandwidth: Option<BandwidthSettings>,
     pub cpu: Option<CpuSettings>,
     pub filesystem: Option<FilesystemSettings>,
@@ -30,35 +24,37 @@ pub struct MetricsSettings {
     pub load: Option<LoadSettings>,
 }
 
-#[derive(Deserialize, Clone)]
+
+#[derive(Deserialize, Clone, Default)]
 #[serde(rename_all = "kebab-case")]
 pub struct DropletSettings {
     #[serde(default)]
     pub keys: Vec<Key>,
     #[serde(default = "default_droplets_url")]
     pub url: String,
-    #[serde(default = "duration_60_seconds")]
+    #[serde(default = "duration_120_seconds")]
     pub interval: std::time::Duration,
     #[serde(default)]
     pub metrics: Vec<DropletMetricsTypes>,
 }
-#[derive(Deserialize, Clone)]
+
+#[derive(Deserialize, Clone, PartialEq, Eq)]
 pub enum DropletMetricsTypes {
-    #[serde(rename="memory")]
+    #[serde(rename = "memory")]
     Memory,
-    #[serde(rename="vcpu")]
+    #[serde(rename = "vcpu")]
     VCpu,
-    #[serde(rename="disk")]
+    #[serde(rename = "disk")]
     Disk,
-    #[serde(rename="status")]
+    #[serde(rename = "status")]
     Status,
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Default)]
 #[serde(rename_all = "kebab-case")]
 pub struct BandwidthSettings {
-    #[serde(default)]
-    pub types: Vec<BandwidthTypes>,
+    #[serde(default = "default_bandwidth_types")]
+    pub types: Vec<BandwidthType>,
     #[serde(default)]
     pub keys: Vec<String>,
     #[serde(default = "duration_10_seconds")]
@@ -67,19 +63,28 @@ pub struct BandwidthSettings {
     pub enabled: bool,
 }
 
-#[derive(Deserialize, Clone)]
-pub enum BandwidthTypes {
-    #[serde(rename="private_inbound")]
+#[derive(Deserialize, Clone, PartialEq, Eq)]
+pub enum BandwidthType {
+    #[serde(rename = "private_inbound")]
     PrivateInbound,
-    #[serde(rename="private_outbound")]
+    #[serde(rename = "private_outbound")]
     PrivateOutbound,
-    #[serde(rename="public_inbound")]
+    #[serde(rename = "public_inbound")]
     PublicInbound,
-    #[serde(rename="public_outbound")]
+    #[serde(rename = "public_outbound")]
     PublicOutbound,
 }
 
-#[derive(Deserialize, Clone)]
+fn default_bandwidth_types() -> Vec<BandwidthType> {
+    vec![
+        BandwidthType::PrivateInbound,
+        BandwidthType::PrivateOutbound,
+        BandwidthType::PublicInbound,
+        BandwidthType::PublicOutbound,
+    ]
+}
+
+#[derive(Deserialize, Clone, Default)]
 #[serde(rename_all = "kebab-case")]
 pub struct CpuSettings {
     #[serde(default)]
@@ -90,27 +95,28 @@ pub struct CpuSettings {
     pub enabled: bool,
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Default)]
 #[serde(rename_all = "kebab-case")]
 pub struct FilesystemSettings {
     #[serde(default)]
     pub types: Vec<FilesystemTypes>,
     #[serde(default)]
     pub keys: Vec<String>,
-    #[serde(default = "duration_10_seconds")]
+    #[serde(default = "duration_120_seconds")]
     pub interval: std::time::Duration,
     #[serde(default = "default_true")]
     pub enabled: bool,
 }
-#[derive(Deserialize, Clone)]
+
+#[derive(Deserialize, Clone, Eq, PartialEq)]
 pub enum FilesystemTypes {
-    #[serde(rename="free")]
+    #[serde(rename = "free")]
     Free,
-    #[serde(rename="size")]
+    #[serde(rename = "size")]
     Size,
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Default)]
 #[serde(rename_all = "kebab-case")]
 pub struct MemorySettings {
     #[serde(default)]
@@ -123,19 +129,19 @@ pub struct MemorySettings {
     pub enabled: bool,
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Eq, PartialEq)]
 pub enum MemoryTypes {
-    #[serde(rename="cached")]
+    #[serde(rename = "cached")]
     Cached,
-    #[serde(rename="free")]
+    #[serde(rename = "free")]
     Free,
-    #[serde(rename="total")]
+    #[serde(rename = "total")]
     Total,
-    #[serde(rename="available")]
-    Available
+    #[serde(rename = "available")]
+    Available,
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Default)]
 #[serde(rename_all = "kebab-case")]
 pub struct LoadSettings {
     #[serde(default)]
@@ -148,14 +154,14 @@ pub struct LoadSettings {
     pub enabled: bool,
 }
 
-#[derive(Deserialize, Clone)]
+#[derive(Deserialize, Clone, Eq, PartialEq)]
 pub enum LoadTypes {
-    #[serde(rename="load_1")]
+    #[serde(rename = "load_1")]
     Load1,
-    #[serde(rename="load_5")]
+    #[serde(rename = "load_5")]
     Load5,
-    #[serde(rename="load_15")]
-    Load15
+    #[serde(rename = "load_15")]
+    Load15,
 }
 
 
@@ -167,6 +173,10 @@ fn duration_10_seconds() -> std::time::Duration {
 
 fn duration_60_seconds() -> std::time::Duration {
     std::time::Duration::from_secs(60)
+}
+
+fn duration_120_seconds() -> std::time::Duration {
+    std::time::Duration::from_secs(120)
 }
 
 fn default_base_url() -> String {
