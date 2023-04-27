@@ -2,7 +2,7 @@ use ahash::HashMap;
 use async_trait::async_trait;
 use chrono::{Duration, Utc};
 use reqwest::Client;
-use crate::client::do_client::{ClientLoadType, DigitalOceanClient, NetworkDirection, NetworkInterface};
+use crate::client::do_client::{ClientLoadType, DigitalOceanClient, FileSystemRequest, MemoryRequest, NetworkDirection, NetworkInterface};
 use crate::client::do_json_protocol::DataResponse;
 use crate::config::config_model::{AppSettings, BandwidthType, FilesystemTypes, LoadTypes, MemoryTypes};
 use crate::config::config_model::DropletMetricsTypes::Memory;
@@ -50,17 +50,19 @@ fn data_response_to_value(response: DataResponse) -> f64 {
         .unwrap_or(0f64)
 }
 
+
+// a lot of boilerplate. but I don't think it would be changing too often
 #[async_trait]
 impl<Client, Store> DropletMetricsService for DropletMetricsServiceImpl<Client, Store>
     where Client: DigitalOceanClient + Clone + Send + Sync,
           Store: DropletStore + Clone + Send + Sync, {
     async fn load_bandwidth(&self) -> anyhow::Result<()> {
-        let bandwith = unwrap_or_return_ok!(self.configs.metrics.bandwidth.as_ref());
+        let bandwidth = unwrap_or_return_ok!(self.configs.metrics.bandwidth.as_ref());
 
-        let enable_private_in = bandwith.types.contains(&BandwidthType::PrivateInbound);
-        let enable_private_out = bandwith.types.contains(&BandwidthType::PrivateOutbound);
-        let enable_public_in = bandwith.types.contains(&BandwidthType::PublicInbound);
-        let enable_public_out = bandwith.types.contains(&BandwidthType::PublicOutbound);
+        let enable_private_in = bandwidth.types.contains(&BandwidthType::PrivateInbound);
+        let enable_private_out = bandwidth.types.contains(&BandwidthType::PrivateOutbound);
+        let enable_public_in = bandwidth.types.contains(&BandwidthType::PublicInbound);
+        let enable_public_out = bandwidth.types.contains(&BandwidthType::PublicOutbound);
 
         let metric_types: Vec<_> = [
             (enable_private_in, NetworkInterface::Private, NetworkDirection::Inbound),
@@ -68,13 +70,9 @@ impl<Client, Store> DropletMetricsService for DropletMetricsServiceImpl<Client, 
             (enable_public_in, NetworkInterface::Public, NetworkDirection::Inbound),
             (enable_public_out, NetworkInterface::Public, NetworkDirection::Outbound),
         ].iter()
-            .filter_map(|(enabled, interface, dir)| {
-                if !enabled {
-                    None
-                } else {
-                    Some((*interface, *dir))
-                }
-            }).collect();
+            .filter(|(enabled, _, _)| *enabled)
+            .map(|(_, interface, dir)| (*interface, *dir))
+            .collect();
 
         let interval_end = Utc::now();
         let interval_start = interval_end - Duration::minutes(30);
@@ -105,7 +103,6 @@ impl<Client, Store> DropletMetricsService for DropletMetricsServiceImpl<Client, 
             }
         }
 
-
         Ok(())
     }
 
@@ -120,7 +117,6 @@ impl<Client, Store> DropletMetricsService for DropletMetricsServiceImpl<Client, 
                 .get_cpu(droplet.id, interval_start, interval_end)
                 .await?;
             let value = data_response_to_value(res);
-
 
             self.metrics.droplet_cpu
                 .with(&std::collections::HashMap::from([
@@ -137,36 +133,35 @@ impl<Client, Store> DropletMetricsService for DropletMetricsServiceImpl<Client, 
         let enable_free = filesystem.types.contains(&FilesystemTypes::Free);
         let enable_size = filesystem.types.contains(&FilesystemTypes::Size);
 
+        let filesystem_types: Vec<_> = [
+            (enable_free, FileSystemRequest::Size),
+            (enable_size, FileSystemRequest::Free),
+        ].iter().filter(|(enabled, _)| *enabled)
+            .map(|(_, client_type)| *client_type)
+            .collect();
+
         let interval_end = Utc::now();
         let interval_start = interval_end - Duration::minutes(30);
 
         self.metrics.droplet_filesystem.reset();
 
         for droplet in self.droplet_store.list_droplets().iter() {
-            if enable_free {
+            for metrics_types in &filesystem_types {
+
                 let res = self.client
-                    .get_file_system_free(droplet.id, interval_start, interval_end)
+                    .get_file_system(droplet.id, *metrics_types, interval_start, interval_end)
                     .await?;
                 let value = data_response_to_value(res);
+
+                let fs_type_str = match metrics_types {
+                    FileSystemRequest::Free => "free",
+                    FileSystemRequest::Size => "size"
+                };
 
                 self.metrics.droplet_filesystem
                     .with(&std::collections::HashMap::from([
                         ("droplet", droplet.name.as_str()),
-                        ("type", "free"),
-                    ])).set(value);
-            }
-
-            if enable_size {
-                let res = self.client
-                    .get_file_system_size(droplet.id, interval_start, interval_end)
-                    .await?;
-                let value = data_response_to_value(res);
-
-
-                self.metrics.droplet_filesystem
-                    .with(&std::collections::HashMap::from([
-                        ("droplet", droplet.name.as_str()),
-                        ("type", "size"),
+                        ("type", fs_type_str),
                     ])).set(value);
             }
         }
@@ -182,63 +177,39 @@ impl<Client, Store> DropletMetricsService for DropletMetricsServiceImpl<Client, 
         let enable_cached = memory.types.contains(&MemoryTypes::Cached);
         let enable_total = memory.types.contains(&MemoryTypes::Total);
 
+        let memory_types: Vec<_> = [
+            (enable_free, MemoryRequest::FreeMemory),
+            (enable_available, MemoryRequest::AvailableTotalMemory),
+            (enable_cached, MemoryRequest::CachedMemory),
+            (enable_total, MemoryRequest::TotalMemory),
+        ].iter().filter(|(enabled, _)| *enabled)
+            .map(|(_, client_type)| *client_type)
+            .collect();
+
         let interval_end = Utc::now();
         let interval_start = interval_end - Duration::minutes(30);
 
         self.metrics.droplet_memory.reset();
 
         for droplet in self.droplet_store.list_droplets().iter() {
-            if enable_free {
+            for memory_type in &memory_types {
+
                 let res = self.client
-                    .get_droplet_free_memory(droplet.id, interval_start, interval_end)
+                    .get_droplet_memory(droplet.id, *memory_type, interval_start, interval_end)
                     .await?;
                 let value = data_response_to_value(res);
+
+                let memory_type_str = match memory_type {
+                    MemoryRequest::CachedMemory =>"free",
+                    MemoryRequest::FreeMemory => "available",
+                    MemoryRequest::TotalMemory => "cached",
+                    MemoryRequest::AvailableTotalMemory =>"total",
+                };
 
                 self.metrics.droplet_memory
                     .with(&std::collections::HashMap::from([
                         ("droplet", droplet.name.as_str()),
-                        ("type", "free"),
-                    ])).set(value);
-            }
-
-            if enable_available {
-                let res = self.client
-                    .get_available_total_memory(droplet.id, interval_start, interval_end)
-                    .await?;
-                let value = data_response_to_value(res);
-
-
-                self.metrics.droplet_memory
-                    .with(&std::collections::HashMap::from([
-                        ("droplet", droplet.name.as_str()),
-                        ("type", "available"),
-                    ])).set(value);
-            }
-
-            if enable_cached {
-                let res = self.client
-                    .get_droplet_cached_memory(droplet.id, interval_start, interval_end)
-                    .await?;
-                let value = data_response_to_value(res);
-
-
-                self.metrics.droplet_memory
-                    .with(&std::collections::HashMap::from([
-                        ("droplet", droplet.name.as_str()),
-                        ("type", "cached"),
-                    ])).set(value);
-            }
-            if enable_total {
-                let res = self.client
-                    .get_droplet_total_memory(droplet.id, interval_start, interval_end)
-                    .await?;
-                let value = data_response_to_value(res);
-
-
-                self.metrics.droplet_memory
-                    .with(&std::collections::HashMap::from([
-                        ("droplet", droplet.name.as_str()),
-                        ("type", "total"),
+                        ("type", memory_type_str),
                     ])).set(value);
             }
         }

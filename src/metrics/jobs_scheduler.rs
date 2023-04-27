@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use tracing::{error, info};
 use crate::client::do_client::DigitalOceanClient;
 use crate::config::config_model::AppSettings;
-use crate::metrics::droplet_merics_service::DropletMetricsService;
+use crate::metrics::droplet_merics_loader::DropletMetricsService;
 use crate::metrics::droplet_store::DropletStore;
 
 #[async_trait]

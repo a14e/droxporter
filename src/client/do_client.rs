@@ -26,37 +26,19 @@ pub trait DigitalOceanClient {
                      end: chrono::DateTime<Utc>) -> anyhow::Result<DataResponse>;
 
 
-    async fn get_file_system_free(&self,
-                                  host_id: u64,
-                                  start: chrono::DateTime<Utc>,
-                                  end: chrono::DateTime<Utc>) -> anyhow::Result<DataResponse>;
-
-    async fn get_file_system_size(&self,
-                                  host_id: u64,
-                                  start: chrono::DateTime<Utc>,
-                                  end: chrono::DateTime<Utc>) -> anyhow::Result<DataResponse>;
+    async fn get_file_system(&self,
+                             host_id: u64,
+                             metric_type: FileSystemRequest,
+                             start: chrono::DateTime<Utc>,
+                             end: chrono::DateTime<Utc>) -> anyhow::Result<DataResponse>;
 
 
-    async fn get_droplet_cached_memory(&self,
-                                       host_id: u64,
-                                       start: chrono::DateTime<Utc>,
-                                       end: chrono::DateTime<Utc>) -> anyhow::Result<DataResponse>;
+    async fn get_droplet_memory(&self,
+                                host_id: u64,
+                                metric_type: MemoryRequest,
+                                start: chrono::DateTime<Utc>,
+                                end: chrono::DateTime<Utc>) -> anyhow::Result<DataResponse>;
 
-
-    async fn get_droplet_free_memory(&self,
-                                     host_id: u64,
-                                     start: chrono::DateTime<Utc>,
-                                     end: chrono::DateTime<Utc>) -> anyhow::Result<DataResponse>;
-
-    async fn get_droplet_total_memory(&self,
-                                      host_id: u64,
-                                      start: chrono::DateTime<Utc>,
-                                      end: chrono::DateTime<Utc>) -> anyhow::Result<DataResponse>;
-
-    async fn get_available_total_memory(&self,
-                                        host_id: u64,
-                                        start: chrono::DateTime<Utc>,
-                                        end: chrono::DateTime<Utc>) -> anyhow::Result<DataResponse>;
 
 
     async fn get_load(&self,
@@ -145,6 +127,21 @@ pub enum RequestType {
     Load5,
     Load15,
 }
+
+#[derive(Clone, Copy)]
+pub enum FileSystemRequest {
+    Free,
+    Size
+}
+
+#[derive(Clone, Copy)]
+pub enum MemoryRequest {
+    CachedMemory,
+    FreeMemory,
+    TotalMemory,
+    AvailableTotalMemory,
+}
+
 
 impl RequestType {
     pub fn to_request_suffix(self) -> anyhow::Result<&'static str> {
@@ -254,24 +251,17 @@ impl<T: KeyManager + Sync + Send> DigitalOceanClient for DigitalOceanClientImpl<
         ).await
     }
 
-    async fn get_file_system_free(&self,
-                                  host_id: u64,
-                                  start: chrono::DateTime<Utc>,
-                                  end: chrono::DateTime<Utc>) -> anyhow::Result<DataResponse> {
+    async fn get_file_system(&self,
+                             host_id: u64,
+                             request:FileSystemRequest,
+                             start: chrono::DateTime<Utc>,
+                             end: chrono::DateTime<Utc>) -> anyhow::Result<DataResponse> {
+        let request = match request {
+            FileSystemRequest::Free => RequestType::FileSystemFree,
+            FileSystemRequest::Size => RequestType::FileSystemSize
+        };
         self.base_metrics_request(
-            RequestType::FileSystemFree,
-            host_id,
-            start,
-            end,
-        ).await
-    }
-
-    async fn get_file_system_size(&self,
-                                  host_id: u64,
-                                  start: chrono::DateTime<Utc>,
-                                  end: chrono::DateTime<Utc>) -> anyhow::Result<DataResponse> {
-        self.base_metrics_request(
-            RequestType::FileSystemSize,
+            request,
             host_id,
             start,
             end,
@@ -279,53 +269,27 @@ impl<T: KeyManager + Sync + Send> DigitalOceanClient for DigitalOceanClientImpl<
     }
 
 
-    async fn get_droplet_cached_memory(&self,
-                                       host_id: u64,
-                                       start: chrono::DateTime<Utc>,
-                                       end: chrono::DateTime<Utc>) -> anyhow::Result<DataResponse> {
+    async fn get_droplet_memory(&self,
+                                host_id: u64,
+                                metric_type: MemoryRequest,
+                                start: chrono::DateTime<Utc>,
+                                end: chrono::DateTime<Utc>) -> anyhow::Result<DataResponse> {
+
+        let request_type = match metric_type {
+            MemoryRequest::CachedMemory => RequestType::CachedMemory,
+            MemoryRequest::FreeMemory => RequestType::FreeMemory,
+            MemoryRequest::TotalMemory => RequestType::TotalMemory,
+            MemoryRequest::AvailableTotalMemory => RequestType::AvailableTotalMemory,
+        };
+
         self.base_metrics_request(
-            RequestType::CachedMemory,
+            request_type,
             host_id,
             start,
             end,
         ).await
     }
 
-    async fn get_droplet_free_memory(&self,
-                                     host_id: u64,
-                                     start: chrono::DateTime<Utc>,
-                                     end: chrono::DateTime<Utc>) -> anyhow::Result<DataResponse> {
-        self.base_metrics_request(
-            RequestType::FreeMemory,
-            host_id,
-            start,
-            end,
-        ).await
-    }
-
-    async fn get_droplet_total_memory(&self,
-                                      host_id: u64,
-                                      start: chrono::DateTime<Utc>,
-                                      end: chrono::DateTime<Utc>) -> anyhow::Result<DataResponse> {
-        self.base_metrics_request(
-            RequestType::TotalMemory,
-            host_id,
-            start,
-            end,
-        ).await
-    }
-
-    async fn get_available_total_memory(&self,
-                                        host_id: u64,
-                                        start: chrono::DateTime<Utc>,
-                                        end: chrono::DateTime<Utc>) -> anyhow::Result<DataResponse> {
-        self.base_metrics_request(
-            RequestType::AvailableTotalMemory,
-            host_id,
-            start,
-            end,
-        ).await
-    }
 
     async fn get_load(&self,
                       host_id: u64,
