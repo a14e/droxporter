@@ -22,7 +22,7 @@ agent-metrics:
     - requests
     - jobs
 
-default-keys: []
+default-keys: ["${AGENT_KEY}"]
 
 droplets:
   keys: ["123"]
