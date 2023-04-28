@@ -1,36 +1,37 @@
+use std::sync::Arc;
 use std::time::Duration;
 use async_trait::async_trait;
 use tracing::{error, info};
 use crate::client::do_client::DigitalOceanClient;
 use crate::config::config_model::AppSettings;
-use crate::metrics::droplet_merics_loader::DropletMetricsService;
+use crate::metrics::agent_metrics::AgentMetricsService;
+use crate::metrics::droplet_metrics_loader::DropletMetricsService;
 use crate::metrics::droplet_store::DropletStore;
 
 #[async_trait]
-pub trait MetricsScheduler {
+pub trait MetricsScheduler: Send + Sync {
     async fn run_droplets_loading(&self) -> anyhow::Result<()>;
     async fn run_bandwidth_metrics_loading(&self) -> anyhow::Result<()>;
     async fn run_cpu_metrics_loading(&self) -> anyhow::Result<()>;
     async fn run_filesystem_metrics_loading(&self) -> anyhow::Result<()>;
     async fn run_memory_metrics_loading(&self) -> anyhow::Result<()>;
     async fn run_load_metrics_loading(&self) -> anyhow::Result<()>;
+    async fn run_agent_metrics_loading(&self) -> anyhow::Result<()>;
 }
 
-
-struct MetricsSchedulerImpl<DoClient, DropletStore, DropletMetricsService> {
-    client: DoClient,
+#[derive(inew::New)]
+pub struct MetricsSchedulerImpl {
+    client: Arc<dyn DigitalOceanClient>,
     configs: &'static AppSettings,
-    droplet_store: DropletStore,
-    metrics_service: DropletMetricsService
+    droplet_store: Arc<dyn DropletStore>,
+    metrics_service: Arc<dyn DropletMetricsService>,
+    agent_service: Arc<dyn AgentMetricsService>,
 }
 
 // There are a lot of duplications here. but it's much simpler for me to debug this way
 // If you know a better and more readable approach, please submit a merge request =)
 #[async_trait]
-impl<Client, Store, Metrics> MetricsScheduler for MetricsSchedulerImpl<Client, Store, Metrics>
-    where Client: DigitalOceanClient + Clone + Send + Sync,
-          Store: DropletStore + Clone + Send + Sync,
-          Metrics: DropletMetricsService + Clone + Send + Sync, {
+impl MetricsScheduler for MetricsSchedulerImpl  {
     async fn run_droplets_loading(&self) -> anyhow::Result<()> {
         info!("Starting droplets loading loop");
 
@@ -179,6 +180,29 @@ impl<Client, Store, Metrics> MetricsScheduler for MetricsSchedulerImpl<Client, S
                     error!("Load metrics loading failed with err {e}");
                     continue;
                 }
+            }
+        }
+        Ok(())
+    }
+
+    async fn run_agent_metrics_loading(&self) -> anyhow::Result<()> {
+        if !self.configs.agent_metrics.enabled {
+            info!("Agent metrics are disabled");
+            return Ok(());
+        }
+        info!("Staring load agent metrics loop");
+        // timeout for initial load
+        // looks ugly, but simple =)
+        let first_delay = Duration::from_secs(10).min(self.configs.agent_metrics.interval);
+        let mut first = true;
+        loop {
+            let timeout = if first { first_delay } else { self.configs.agent_metrics.interval };
+            first = false;
+            tokio::time::sleep(timeout).await;
+
+            if let Err(e) = self.agent_service.load_agent_metrics() {
+                error!("Load metrics loading failed with err {e}");
+                continue;
             }
         }
         Ok(())

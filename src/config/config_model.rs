@@ -9,6 +9,7 @@ pub struct AppSettings {
     pub default_keys: Vec<Key>,
     pub droplets: DropletSettings,
     pub metrics: MetricsConfig,
+    pub agent_metrics: AgentMetricsConfigs,
 }
 
 #[derive(Deserialize, Clone, Default)]
@@ -24,6 +25,31 @@ pub struct MetricsConfig {
     pub load: Option<LoadSettings>,
 }
 
+#[derive(Deserialize, Clone, Default)]
+#[serde(rename_all = "kebab-case")]
+pub struct AgentMetricsConfigs {
+    #[serde(default)]
+    pub metrics: Vec<AgentMetricsType>,
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default = "duration_10_seconds")]
+    #[serde(with = "humantime_serde")]
+    pub interval: std::time::Duration,
+}
+
+#[derive(Deserialize, Clone, PartialEq, Eq)]
+pub enum AgentMetricsType {
+    #[serde(rename = "memory")]
+    Memory,
+    #[serde(rename = "cpu")]
+    Cpu,
+    #[serde(rename = "limits")]
+    Limits,
+    #[serde(rename = "requests")]
+    Requests,
+    #[serde(rename = "jobs")]
+    Jobs,
+}
 
 #[derive(Deserialize, Clone, Default)]
 #[serde(rename_all = "kebab-case")]
@@ -33,6 +59,7 @@ pub struct DropletSettings {
     #[serde(default = "default_droplets_url")]
     pub url: String,
     #[serde(default = "duration_120_seconds")]
+    #[serde(with = "humantime_serde")]
     pub interval: std::time::Duration,
     #[serde(default)]
     pub metrics: Vec<DropletMetricsTypes>,
@@ -58,6 +85,7 @@ pub struct BandwidthSettings {
     #[serde(default)]
     pub keys: Vec<String>,
     #[serde(default = "duration_10_seconds")]
+    #[serde(with = "humantime_serde")]
     pub interval: std::time::Duration,
     #[serde(default = "default_true")]
     pub enabled: bool,
@@ -90,6 +118,7 @@ pub struct CpuSettings {
     #[serde(default)]
     pub keys: Vec<String>,
     #[serde(default = "duration_10_seconds")]
+    #[serde(with = "humantime_serde")]
     pub interval: std::time::Duration,
     #[serde(default = "default_true")]
     pub enabled: bool,
@@ -103,6 +132,7 @@ pub struct FilesystemSettings {
     #[serde(default)]
     pub keys: Vec<String>,
     #[serde(default = "duration_120_seconds")]
+    #[serde(with = "humantime_serde")]
     pub interval: std::time::Duration,
     #[serde(default = "default_true")]
     pub enabled: bool,
@@ -124,6 +154,7 @@ pub struct MemorySettings {
     #[serde(default)]
     pub keys: Vec<String>,
     #[serde(default = "duration_10_seconds")]
+    #[serde(with = "humantime_serde")]
     pub interval: std::time::Duration,
     #[serde(default)]
     pub enabled: bool,
@@ -149,6 +180,7 @@ pub struct LoadSettings {
     #[serde(default)]
     pub keys: Vec<String>,
     #[serde(default = "duration_10_seconds")]
+    #[serde(with = "humantime_serde")]
     pub interval: std::time::Duration,
     #[serde(default)]
     pub enabled: bool,

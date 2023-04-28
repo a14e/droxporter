@@ -1,14 +1,15 @@
 use std::sync::Arc;
-use ahash::HashMap;
+use ahash::{HashMap, HashSet};
 use async_trait::async_trait;
-use parking_lot::{RawRwLock, RwLock};
-use parking_lot::lock_api::ArcRwLockReadGuard;
+use parking_lot::{RwLock};
+use prometheus::Opts;
 use crate::client::do_client::DigitalOceanClient;
 use crate::client::do_json_protocol::DropletResponse;
 use crate::config::config_model::{AppSettings, DropletMetricsTypes};
+use crate::metrics::utils;
 
 #[async_trait]
-pub trait DropletStore {
+pub trait DropletStore: Send + Sync {
     async fn load_droplets(&self) -> anyhow::Result<()>;
 
     fn record_droplets_metrics(&self);
@@ -41,13 +42,25 @@ impl From<DropletResponse> for BasicDropletInfo {
     }
 }
 
-
-
-pub struct DropletStoreImpl<DOClient> {
+#[derive(Clone)]
+pub struct DropletStoreImpl {
     store: Arc<RwLock<Vec<BasicDropletInfo>>>,
-    client: DOClient,
+    client: Arc<dyn DigitalOceanClient>,
     configs: &'static AppSettings,
-    metrics: DropletsMetrics
+    metrics: DropletsMetrics,
+}
+
+impl DropletStoreImpl {
+    pub fn new(client: Arc<dyn DigitalOceanClient>,
+               configs: &'static AppSettings,
+               registry: prometheus::Registry) -> Self {
+        Self {
+            store: Arc::new(RwLock::new(vec![])),
+            client,
+            configs,
+            metrics: DropletsMetrics::new(registry)
+        }
+    }
 }
 
 
@@ -59,16 +72,50 @@ struct DropletsMetrics {
     status_gauge: prometheus::GaugeVec,
 }
 
+impl DropletsMetrics {
+    fn new(registry: prometheus::Registry) -> Self {
+        let memory_gauge = prometheus::GaugeVec::new(
+            Opts::new("droxporter_droplet_memory_settings", "Memory settings of droplet"),
+            &["droplet"],
+        ).unwrap();
+        let vcpu_gauge = prometheus::GaugeVec::new(
+            Opts::new("droxporter_droplet_vcpu_settings", "Cpu settings of droplet"),
+            &["droplet"],
+        ).unwrap();
+        let disk_gauge = prometheus::GaugeVec::new(
+            Opts::new("droxporter_droplet_disk_settings", "Disk settings of droplet"),
+            &["droplet"],
+        ).unwrap();
+        let status_gauge = prometheus::GaugeVec::new(
+            Opts::new("droxporter_droplet_status", "Status of droplet"),
+            &["droplet", "status"],
+        ).unwrap();
 
-impl<DOClient: DigitalOceanClient + Clone> DropletStoreImpl<DOClient> {
-    fn safe_droplets(&self,
+        registry.register(Box::new(memory_gauge.clone())).unwrap();
+        registry.register(Box::new(vcpu_gauge.clone())).unwrap();
+        registry.register(Box::new(disk_gauge.clone())).unwrap();
+        registry.register(Box::new(status_gauge.clone())).unwrap();
+
+        Self {
+            memory_gauge,
+            vcpu_gauge,
+            disk_gauge,
+            status_gauge,
+        }
+    }
+}
+
+
+impl DropletStoreImpl {
+    fn save_droplets(&self,
                      droplets: Vec<BasicDropletInfo>) {
         *self.store.write() = droplets;
     }
 }
 
+
 #[async_trait]
-impl<DOClient: DigitalOceanClient + Clone + Send + Sync> DropletStore for DropletStoreImpl<DOClient> {
+impl DropletStore for DropletStoreImpl {
     async fn load_droplets(&self) -> anyhow::Result<()> {
         let mut result: Vec<BasicDropletInfo> = Vec::new();
         let mut fetch_next = true;
@@ -80,21 +127,15 @@ impl<DOClient: DigitalOceanClient + Clone + Send + Sync> DropletStore for Drople
             result.extend(loaded.droplets.into_iter().map(BasicDropletInfo::from));
             page += 1;
         }
-        self.safe_droplets(result);
+        self.save_droplets(result);
         Ok(())
     }
 
-    fn record_droplets_metrics(&self)  {
+    fn record_droplets_metrics(&self) {
         let enabled_memory = self.configs.droplets.metrics.contains(&DropletMetricsTypes::Memory);
         let enabled_vcpu = self.configs.droplets.metrics.contains(&DropletMetricsTypes::VCpu);
         let enabled_disc = self.configs.droplets.metrics.contains(&DropletMetricsTypes::Disk);
         let enabled_status = self.configs.droplets.metrics.contains(&DropletMetricsTypes::Status);
-
-        // to prevent phantom droplets
-        self.metrics.memory_gauge.reset();
-        self.metrics.vcpu_gauge.reset();
-        self.metrics.disk_gauge.reset();
-        self.metrics.status_gauge.reset();
 
 
         for droplet in self.store.read().iter() {
@@ -128,12 +169,22 @@ impl<DOClient: DigitalOceanClient + Clone + Send + Sync> DropletStore for Drople
                     ])).set(1 as f64);
             }
         }
+        let lock = self.store.read();
+        let droplets: HashSet<_> = {
+            lock.iter().map(|x| x.name.as_str()).collect()
+        };
 
+        // to prevent phantom droplets
+        utils::remove_old_droplets(&self.metrics.memory_gauge, &droplets);
+        utils::remove_old_droplets(&self.metrics.vcpu_gauge, &droplets);
+        utils::remove_old_droplets(&self.metrics.disk_gauge, &droplets);
+        utils::remove_old_droplets(&self.metrics.status_gauge, &droplets);
     }
 
     fn list_droplets(&self) -> Vec<BasicDropletInfo> {
         self.store.read().clone()
     }
+
 }
 
 

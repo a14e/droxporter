@@ -1,15 +1,18 @@
+use std::sync::Arc;
 use ahash::HashMap;
 use async_trait::async_trait;
 use chrono::{Duration, Utc};
+use prometheus::Opts;
 use reqwest::Client;
 use crate::client::do_client::{ClientLoadType, DigitalOceanClient, FileSystemRequest, MemoryRequest, NetworkDirection, NetworkInterface};
 use crate::client::do_json_protocol::DataResponse;
 use crate::config::config_model::{AppSettings, BandwidthType, FilesystemTypes, LoadTypes, MemoryTypes};
 use crate::config::config_model::DropletMetricsTypes::Memory;
 use crate::metrics::droplet_store::DropletStore;
+use crate::metrics::utils;
 
 #[async_trait]
-pub trait DropletMetricsService {
+pub trait DropletMetricsService: Send + Sync {
     async fn load_bandwidth(&self) -> anyhow::Result<()>;
     async fn load_cpu_metrics(&self) -> anyhow::Result<()>;
     async fn load_filesystem_metrics(&self) -> anyhow::Result<()>;
@@ -18,19 +21,72 @@ pub trait DropletMetricsService {
 }
 
 
-struct DropletMetricsServiceImpl<DOClient, DropletStore> {
-    client: DOClient,
-    droplet_store: DropletStore,
+#[derive(Clone)]
+pub struct DropletMetricsServiceImpl {
+    client: Arc<dyn DigitalOceanClient>,
+    droplet_store: Arc<dyn DropletStore>,
     configs: &'static AppSettings,
     metrics: Metrics,
 }
 
+impl DropletMetricsServiceImpl {
+    pub fn new(client: Arc<dyn DigitalOceanClient>,
+               droplet_store: Arc<dyn DropletStore>,
+               configs: &'static AppSettings,
+               registry: prometheus::Registry) -> Self {
+        Self {
+            client,
+            droplet_store,
+            configs,
+            metrics: Metrics::new(registry),
+        }
+    }
+}
+
+#[derive(Clone)]
 struct Metrics {
     droplet_bandwidth: prometheus::GaugeVec,
     droplet_cpu: prometheus::GaugeVec,
     droplet_filesystem: prometheus::GaugeVec,
     droplet_memory: prometheus::GaugeVec,
     droplet_load: prometheus::GaugeVec,
+}
+
+impl Metrics {
+    fn new(registry: prometheus::Registry) -> Self {
+        let droplet_bandwidth = prometheus::GaugeVec::new(
+            Opts::new("droxporter_droplet_bandwidth", "Bandwidth of droplet"),
+            &["droplet", "interface", "direction"],
+        ).unwrap();
+        let droplet_cpu = prometheus::GaugeVec::new(
+            Opts::new("droxporter_droplet_cpu", "CPU usage of droplet"),
+            &["droplet"],
+        ).unwrap();
+        let droplet_filesystem = prometheus::GaugeVec::new(
+            Opts::new("droxporter_droplet_filesystem", "Filesystem usage of droplet"),
+            &["droplet", "type"],
+        ).unwrap();
+        let droplet_memory = prometheus::GaugeVec::new(
+            Opts::new("droxporter_droplet_memory", "Memory usage of droplet"),
+            &["droplet", "type"],
+        ).unwrap();
+        let droplet_load = prometheus::GaugeVec::new(
+            Opts::new("droxporter_droplet_load", "Load of droplet"),
+            &["droplet", "type"],
+        ).unwrap();
+        registry.register(Box::new(droplet_bandwidth.clone())).unwrap();
+        registry.register(Box::new(droplet_cpu.clone())).unwrap();
+        registry.register(Box::new(droplet_filesystem.clone())).unwrap();
+        registry.register(Box::new(droplet_memory.clone())).unwrap();
+        registry.register(Box::new(droplet_load.clone())).unwrap();
+        Self {
+            droplet_bandwidth,
+            droplet_cpu,
+            droplet_filesystem,
+            droplet_memory,
+            droplet_load,
+        }
+    }
 }
 
 macro_rules! unwrap_or_return_ok {
@@ -45,17 +101,15 @@ macro_rules! unwrap_or_return_ok {
 fn data_response_to_value(response: DataResponse) -> f64 {
     response.data.result.iter()
         .flat_map(|x| x.values.iter())
-        .flat_map(|x| x.value.parse::<f64>().ok())
-        .last()
+        .max_by_key(|x| x.timestamp)
+        .and_then(|x| x.value.parse::<f64>().ok())
         .unwrap_or(0f64)
 }
 
 
 // a lot of boilerplate. but I don't think it would be changing too often
 #[async_trait]
-impl<Client, Store> DropletMetricsService for DropletMetricsServiceImpl<Client, Store>
-    where Client: DigitalOceanClient + Clone + Send + Sync,
-          Store: DropletStore + Clone + Send + Sync, {
+impl DropletMetricsService for DropletMetricsServiceImpl {
     async fn load_bandwidth(&self) -> anyhow::Result<()> {
         let bandwidth = unwrap_or_return_ok!(self.configs.metrics.bandwidth.as_ref());
 
@@ -77,9 +131,9 @@ impl<Client, Store> DropletMetricsService for DropletMetricsServiceImpl<Client, 
         let interval_end = Utc::now();
         let interval_start = interval_end - Duration::minutes(30);
 
-        self.metrics.droplet_bandwidth.reset();
 
-        for droplet in self.droplet_store.list_droplets().iter() {
+        let droplets = self.droplet_store.list_droplets();
+        for droplet in droplets.iter() {
             for (interface, dir) in &metric_types {
                 let res = self.client
                     .get_bandwidth(droplet.id, *interface, *dir, interval_start, interval_end)
@@ -103,12 +157,17 @@ impl<Client, Store> DropletMetricsService for DropletMetricsServiceImpl<Client, 
             }
         }
 
+        let droplets = self.droplet_store.list_droplets();
+        let droplets_names: ahash::HashSet<_> = droplets
+            .iter()
+            .map(|x| x.name.as_str())
+            .collect();
+        utils::remove_old_droplets(&self.metrics.droplet_bandwidth, &droplets_names);
+
         Ok(())
     }
 
     async fn load_cpu_metrics(&self) -> anyhow::Result<()> {
-        self.metrics.droplet_cpu.reset();
-
         let interval_end = Utc::now();
         let interval_start = interval_end - Duration::minutes(30);
 
@@ -123,6 +182,13 @@ impl<Client, Store> DropletMetricsService for DropletMetricsServiceImpl<Client, 
                     ("droplet", droplet.name.as_str()),
                 ])).set(value);
         }
+
+        let droplets = self.droplet_store.list_droplets();
+        let droplets_names: ahash::HashSet<_> = droplets
+            .iter()
+            .map(|x| x.name.as_str())
+            .collect();
+        utils::remove_old_droplets(&self.metrics.droplet_cpu, &droplets_names);
 
         Ok(())
     }
@@ -143,11 +209,8 @@ impl<Client, Store> DropletMetricsService for DropletMetricsServiceImpl<Client, 
         let interval_end = Utc::now();
         let interval_start = interval_end - Duration::minutes(30);
 
-        self.metrics.droplet_filesystem.reset();
-
         for droplet in self.droplet_store.list_droplets().iter() {
             for metrics_types in &filesystem_types {
-
                 let res = self.client
                     .get_file_system(droplet.id, *metrics_types, interval_start, interval_end)
                     .await?;
@@ -165,6 +228,13 @@ impl<Client, Store> DropletMetricsService for DropletMetricsServiceImpl<Client, 
                     ])).set(value);
             }
         }
+
+        let droplets = self.droplet_store.list_droplets();
+        let droplets_names: ahash::HashSet<_> = droplets
+            .iter()
+            .map(|x| x.name.as_str())
+            .collect();
+        utils::remove_old_droplets(&self.metrics.droplet_filesystem, &droplets_names);
 
         Ok(())
     }
@@ -189,21 +259,18 @@ impl<Client, Store> DropletMetricsService for DropletMetricsServiceImpl<Client, 
         let interval_end = Utc::now();
         let interval_start = interval_end - Duration::minutes(30);
 
-        self.metrics.droplet_memory.reset();
-
         for droplet in self.droplet_store.list_droplets().iter() {
             for memory_type in &memory_types {
-
                 let res = self.client
                     .get_droplet_memory(droplet.id, *memory_type, interval_start, interval_end)
                     .await?;
                 let value = data_response_to_value(res);
 
                 let memory_type_str = match memory_type {
-                    MemoryRequest::CachedMemory =>"free",
+                    MemoryRequest::CachedMemory => "free",
                     MemoryRequest::FreeMemory => "available",
                     MemoryRequest::TotalMemory => "cached",
-                    MemoryRequest::AvailableTotalMemory =>"total",
+                    MemoryRequest::AvailableTotalMemory => "total",
                 };
 
                 self.metrics.droplet_memory
@@ -213,6 +280,13 @@ impl<Client, Store> DropletMetricsService for DropletMetricsServiceImpl<Client, 
                     ])).set(value);
             }
         }
+
+        let droplets = self.droplet_store.list_droplets();
+        let droplets_names: ahash::HashSet<_> = droplets
+            .iter()
+            .map(|x| x.name.as_str())
+            .collect();
+        utils::remove_old_droplets(&self.metrics.droplet_memory, &droplets_names);
 
         Ok(())
     }
@@ -236,8 +310,6 @@ impl<Client, Store> DropletMetricsService for DropletMetricsServiceImpl<Client, 
         let interval_end = Utc::now();
         let interval_start = interval_end - Duration::minutes(30);
 
-        self.metrics.droplet_memory.reset();
-
         for droplet in self.droplet_store.list_droplets().iter() {
             for load_type in &load_types {
                 let res = self.client
@@ -258,6 +330,13 @@ impl<Client, Store> DropletMetricsService for DropletMetricsServiceImpl<Client, 
                     ])).set(value);
             }
         }
+
+        let droplets = self.droplet_store.list_droplets();
+        let droplets_names: ahash::HashSet<_> = droplets
+            .iter()
+            .map(|x| x.name.as_str())
+            .collect();
+        utils::remove_old_droplets(&self.metrics.droplet_load, &droplets_names);
 
         Ok(())
     }

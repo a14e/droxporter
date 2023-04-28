@@ -1,7 +1,28 @@
 
-default-keys: ["1234"]
+endpoint:
+  port: 8888
+  host: "0.0.0.0"
+  credentials:
+    login: "login"
+    password: "password"
+  ssl:
+    enabled: ${SSL_ENABLED:true}
+    root-cert-path: "${SSL_ROOT_CERT_PATH:./cert.pem}"
+    key-path: "${SSL_KEY_PATH:./key.pem}"
 
-agent-metrics: true
+
+
+agent-metrics:
+  enabled: true
+  interval: 5s
+  metrics:
+    - cpu
+    - memory
+    - limits
+    - requests
+    - jobs
+
+default-keys: ["dop_v1_0da24afc9adfa53981fa9910d4fb807c85ffe667f9e7f558bf3a161920b221b1", "dop_v1_6afa7df8a9fb36d6353d2002c9d035d870814f207da1104670e5c8f6a91d2455"]
 
 droplets:
   keys: ["123"]
@@ -17,26 +38,26 @@ metrics:
   base-url: "https://api.digitalocean.com/v2/monitoring/metrics/droplet"
   bandwidth:
     types: [ private_inbound, private_outbound, public_inbound, public_outbound ]
-    keys: ["123"]
+    keys: []
     interval: 10s
     enabled: true
   cpu:
-    keys: ["123"]
+    keys: []
     interval: 15s
     enabled: true
   filesystem:
     types: [ free, size ]
-    keys: ["123"]
+    keys: []
     interval: 60s
     enabled: true
   memory:
     types: [ cached, free, total, available ]
-    keys: ["123"]
+    keys: []
     interval: 10s
     enabled: true
   load:
     types: [ load_1, load_5, load_15 ]
-    keys: ["123"]
+    keys: []
     interval: 10s
     enabled: true
 

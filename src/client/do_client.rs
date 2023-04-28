@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use async_trait::async_trait;
 use chrono::Utc;
 use url::Url;
@@ -6,7 +7,7 @@ use crate::client::key_manager::{KeyManager, KeyType};
 use crate::config::config_model::AppSettings;
 
 #[async_trait]
-pub trait DigitalOceanClient {
+pub trait DigitalOceanClient: Send + Sync {
     async fn list_droplets(&self,
                            per_page: u64,
                            page: u64) -> anyhow::Result<ListDropletsResponse>;
@@ -40,7 +41,6 @@ pub trait DigitalOceanClient {
                                 end: chrono::DateTime<Utc>) -> anyhow::Result<DataResponse>;
 
 
-
     async fn get_load(&self,
                       host_id: u64,
                       load_type: ClientLoadType,
@@ -69,15 +69,15 @@ pub enum ClientLoadType {
 }
 
 
-#[derive(mydi::Component, Clone)]
-pub struct DigitalOceanClientImpl<KeyManager: 'static> {
+#[derive(inew::New, Clone)]
+pub struct DigitalOceanClientImpl {
     config: &'static AppSettings,
     client: reqwest::Client,
-    token_manager: KeyManager,
+    token_manager: Arc<dyn KeyManager>,
 }
 
 
-impl<T: KeyManager> DigitalOceanClientImpl<T> {
+impl DigitalOceanClientImpl {
     async fn base_metrics_request(&self,
                                   request_type: RequestType,
                                   host_id: u64,
@@ -108,7 +108,6 @@ impl<T: KeyManager> DigitalOceanClientImpl<T> {
 
         Ok(res)
     }
-
 }
 
 
@@ -131,7 +130,7 @@ pub enum RequestType {
 #[derive(Clone, Copy)]
 pub enum FileSystemRequest {
     Free,
-    Size
+    Size,
 }
 
 #[derive(Clone, Copy)]
@@ -182,7 +181,7 @@ impl Into<KeyType> for RequestType {
 }
 
 #[async_trait]
-impl<T: KeyManager + Sync + Send> DigitalOceanClient for DigitalOceanClientImpl<T> {
+impl DigitalOceanClient for DigitalOceanClientImpl {
     async fn list_droplets(&self,
                            per_page: u64,
                            page: u64) -> anyhow::Result<ListDropletsResponse> {
@@ -253,7 +252,7 @@ impl<T: KeyManager + Sync + Send> DigitalOceanClient for DigitalOceanClientImpl<
 
     async fn get_file_system(&self,
                              host_id: u64,
-                             request:FileSystemRequest,
+                             request: FileSystemRequest,
                              start: chrono::DateTime<Utc>,
                              end: chrono::DateTime<Utc>) -> anyhow::Result<DataResponse> {
         let request = match request {
@@ -274,7 +273,6 @@ impl<T: KeyManager + Sync + Send> DigitalOceanClient for DigitalOceanClientImpl<
                                 metric_type: MemoryRequest,
                                 start: chrono::DateTime<Utc>,
                                 end: chrono::DateTime<Utc>) -> anyhow::Result<DataResponse> {
-
         let request_type = match metric_type {
             MemoryRequest::CachedMemory => RequestType::CachedMemory,
             MemoryRequest::FreeMemory => RequestType::FreeMemory,

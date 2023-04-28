@@ -6,7 +6,7 @@ use crate::client::rate_limiter::MultiLimits;
 use crate::config::config_model::AppSettings;
 
 
-pub trait KeyManager {
+pub trait KeyManager: Send + Sync {
     fn acquire_key(&self,
                    key_type: KeyType) -> anyhow::Result<Key>;
 }
@@ -18,7 +18,7 @@ pub struct KeyManagerImpl {
 }
 
 impl KeyManagerImpl {
-    fn new(configs: AppSettings) -> Self {
+    pub fn new(configs: &AppSettings) -> Self {
         Self {
             state: Arc::new(Mutex::new(KeyManagerState::new(configs)))
         }
@@ -66,39 +66,39 @@ pub enum KeyType {
 }
 
 impl KeyManagerState {
-    pub fn new(mut configs: AppSettings) -> Self {
+    pub fn new(configs: &AppSettings) -> Self {
         let mut keys: HashMap<KeyType, Vec<Key>> = Default::default();
 
-        keys.insert(KeyType::Default, std::mem::take(&mut configs.default_keys));
-        keys.insert(KeyType::Droplets, std::mem::take(&mut configs.droplets.keys));
-        if let Some(bandwidth) = configs.metrics.bandwidth.as_mut() {
+        keys.insert(KeyType::Default, configs.default_keys.clone());
+        keys.insert(KeyType::Droplets, configs.droplets.keys.clone());
+        if let Some(bandwidth) = configs.metrics.bandwidth.as_ref() {
             keys.insert(
                 KeyType::Bandwidth,
-                std::mem::take(&mut bandwidth.keys),
+                bandwidth.keys.clone(),
             );
         }
-        if let Some(cpu) = configs.metrics.cpu.as_mut() {
+        if let Some(cpu) = configs.metrics.cpu.as_ref() {
             keys.insert(
                 KeyType::Cpu,
-                std::mem::take(&mut cpu.keys),
+                cpu.keys.clone(),
             );
         }
-        if let Some(filesystem) = configs.metrics.filesystem.as_mut() {
+        if let Some(filesystem) = configs.metrics.filesystem.as_ref() {
             keys.insert(
                 KeyType::FileSystem,
-                std::mem::take(&mut filesystem.keys),
+                filesystem.keys.clone(),
             );
         }
-        if let Some(memory) = configs.metrics.memory.as_mut() {
+        if let Some(memory) = configs.metrics.memory.as_ref() {
             keys.insert(
                 KeyType::Memory,
-                std::mem::take(&mut memory.keys),
+                memory.keys.clone(),
             );
         }
-        if let Some(load) = configs.metrics.load.as_mut() {
+        if let Some(load) = configs.metrics.load.as_ref() {
             keys.insert(
                 KeyType::Load,
-                std::mem::take(&mut load.keys),
+                load.keys.clone(),
             );
         }
 
@@ -169,7 +169,7 @@ mod key_manager {
         configs.metrics.bandwidth.as_mut().unwrap().keys = vec!["bandwidth".into()];
         configs.droplets.keys = vec!["droplets".into()];
 
-        let manager = KeyManagerImpl::new(configs);
+        let manager = KeyManagerImpl::new(&configs);
 
         let key = manager.acquire_key(KeyType::Memory).unwrap();
         assert_eq!(key, "memory".to_string());
@@ -195,7 +195,7 @@ mod key_manager {
 
         configs.metrics.memory.as_mut().unwrap().keys = vec!["memory".into()];
 
-        let manager = KeyManagerImpl::new(configs);
+        let manager = KeyManagerImpl::new(&configs);
 
         for _ in 0..250 {
             manager.acquire_key(KeyType::Memory).unwrap();
@@ -211,10 +211,9 @@ mod key_manager {
         configs.metrics.memory = Some(Default::default());
         configs.default_keys = vec!["default".into()];
 
-        let manager = KeyManagerImpl::new(configs);
+        let manager = KeyManagerImpl::new(&configs);
 
         let key = manager.acquire_key(KeyType::Memory).unwrap();
         assert_eq!(key, "default".to_string());
     }
-
 }
