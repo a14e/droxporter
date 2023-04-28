@@ -22,7 +22,7 @@ agent-metrics:
     - requests
     - jobs
 
-default-keys: ["dop_v1_0da24afc9adfa53981fa9910d4fb807c85ffe667f9e7f558bf3a161920b221b1", "dop_v1_6afa7df8a9fb36d6353d2002c9d035d870814f207da1104670e5c8f6a91d2455"]
+default-keys: []
 
 droplets:
   keys: ["123"]

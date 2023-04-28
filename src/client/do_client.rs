@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use async_trait::async_trait;
 use chrono::Utc;
+use reqwest::StatusCode;
 use url::Url;
 use crate::client::do_json_protocol::{DataResponse, ListDropletsResponse};
 use crate::client::key_manager::{KeyManager, KeyType};
@@ -98,12 +99,20 @@ impl DigitalOceanClientImpl {
 
         let bearer = self.token_manager.acquire_key(request_type.into())?;
 
-        let res = self.client
+        let response = self.client
             .get(url)
             .bearer_auth(bearer)
             .send()
-            .await?
-            .json::<DataResponse>()
+            .await?;
+
+        if response.status() != StatusCode::OK && response.status() != StatusCode::NO_CONTENT {
+            let status = response.status();
+            let body = response.text().await?;
+            let err = format!("Request failed with ststus code: {status}, body: {body}");
+            return Err(anyhow::Error::msg(err))
+        }
+
+        let res = response.json::<DataResponse>()
             .await?;
 
         Ok(res)
@@ -192,13 +201,22 @@ impl DigitalOceanClient for DigitalOceanClientImpl {
 
         let bearer = self.token_manager.acquire_key(RequestType::Droplets.into())?;
 
-        let res = self.client
+        let response = self.client
             .get(url)
             .bearer_auth(bearer)
             .send()
-            .await?
-            .json::<ListDropletsResponse>()
             .await?;
+
+        if response.status() != StatusCode::OK && response.status() != StatusCode::NO_CONTENT {
+            let status = response.status();
+            let body = response.text().await?;
+            let err = format!("Request failed with status code: {status}, body: {body}");
+            return Err(anyhow::Error::msg(err))
+        }
+
+        let res = response.json::<ListDropletsResponse>()
+            .await?;
+
 
         Ok(res)
     }
@@ -227,13 +245,20 @@ impl DigitalOceanClient for DigitalOceanClientImpl {
 
         let bearer = self.token_manager.acquire_key(RequestType::Bandwidth.into())?;
 
-        let res = self.client
+        let response = self.client
             .get(url)
-            .bearer_auth(bearer.as_str())
+            .bearer_auth(bearer)
             .send()
-            .await?
-            .json::<DataResponse>()
             .await?;
+
+        if response.status() != StatusCode::OK && response.status() != StatusCode::NO_CONTENT {
+            let status = response.status();
+            let body = response.text().await?;
+            let err = format!("Request failed with status code: {status}, body: {body}");
+            return Err(anyhow::Error::msg(err))
+        }
+
+        let res = response.json::<DataResponse>().await?;
 
         Ok(res)
     }
