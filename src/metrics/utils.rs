@@ -26,6 +26,6 @@ pub fn remove_old_droplets(gauge: &prometheus::GaugeVec,
 }
 
 
-pub const DROXPORTER_DEFAULT_BUCKETS: &[f64; 19] = &[
-    0.001, 0.002, 0.004, 0.006, 0.008, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 50.0, 100.0, 200.0, 300.0
+pub const DROXPORTER_DEFAULT_BUCKETS: &[f64; 16] = &[
+    0.001, 0.004, 0.008, 0.016, 0.032, 0.064, 0.128, 0.256, 0.512, 1.024, 2.048, 8.192, 16.384, 32.768, 131.072, 262.144
 ];

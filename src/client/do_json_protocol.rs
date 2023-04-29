@@ -41,7 +41,7 @@ pub struct MetricsResponse {
 // Of course, I could use generics here, but I think it would be much harder to work with and understand.
 // So, I prefer to create a bit of chaos =)
 // Also, if Digital Ocean ever decides to change the protocol, everything would continue to work, just with unknown labels.
-#[derive(Deserialize, PartialEq, Debug)]
+#[derive(Deserialize, PartialEq, Debug, Default)]
 pub struct MetricMetaInfo {
     pub host_id: String,
 
@@ -132,7 +132,7 @@ mod deserialize_test {
                     MetricsResponse {
                         metric: MetricMetaInfo {
                             host_id: "335943309".into(),
-                            mode: None,
+                            ..Default::default()
                         },
                         values: vec![
                             MetricPoint { timestamp: 1682246520, value: "0.00011012000000000001".into() },
