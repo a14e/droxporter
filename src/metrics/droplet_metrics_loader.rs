@@ -5,7 +5,7 @@ use chrono::{Duration, Utc};
 use prometheus::Opts;
 use reqwest::Client;
 use crate::client::do_client::{ClientLoadType, DigitalOceanClient, FileSystemRequest, MemoryRequest, NetworkDirection, NetworkInterface};
-use crate::client::do_json_protocol::DataResponse;
+use crate::client::do_json_protocol::{DataResponse, MetricMetaInfo, MetricsResponse};
 use crate::config::config_model::{AppSettings, BandwidthType, FilesystemTypes, LoadTypes, MemoryTypes};
 use crate::metrics::droplet_store::DropletStore;
 use crate::metrics::utils;
@@ -25,7 +25,7 @@ pub struct DropletMetricsServiceImpl {
     client: Arc<dyn DigitalOceanClient>,
     droplet_store: Arc<dyn DropletStore>,
     configs: &'static AppSettings,
-    metrics: Metrics,
+    metrics: LoaderMetrics,
 }
 
 impl DropletMetricsServiceImpl {
@@ -37,14 +37,14 @@ impl DropletMetricsServiceImpl {
             client,
             droplet_store,
             configs,
-            metrics: Metrics::new(registry)?,
+            metrics: LoaderMetrics::new(registry)?,
         };
         Ok(result)
     }
 }
 
 #[derive(Clone)]
-struct Metrics {
+struct LoaderMetrics {
     droplet_bandwidth: prometheus::GaugeVec,
     droplet_cpu: prometheus::GaugeVec,
     droplet_filesystem: prometheus::GaugeVec,
@@ -52,7 +52,7 @@ struct Metrics {
     droplet_load: prometheus::GaugeVec,
 }
 
-impl Metrics {
+impl LoaderMetrics {
     fn new(registry: prometheus::Registry) -> anyhow::Result<Self> {
         let droplet_bandwidth = prometheus::GaugeVec::new(
             Opts::new("droxporter_droplet_bandwidth", "Bandwidth of droplet"),
@@ -60,19 +60,19 @@ impl Metrics {
         )?;
         let droplet_cpu = prometheus::GaugeVec::new(
             Opts::new("droxporter_droplet_cpu", "CPU usage of droplet"),
-            &["droplet"],
+            &["droplet", "mode"],
         )?;
         let droplet_filesystem = prometheus::GaugeVec::new(
             Opts::new("droxporter_droplet_filesystem", "Filesystem usage of droplet"),
-            &["droplet", "type"],
+            &["droplet", "metric_type", "device", "fstype", "mountpoint"],
         )?;
         let droplet_memory = prometheus::GaugeVec::new(
             Opts::new("droxporter_droplet_memory", "Memory usage of droplet"),
-            &["droplet", "type"],
+            &["droplet", "metric_type"],
         )?;
         let droplet_load = prometheus::GaugeVec::new(
             Opts::new("droxporter_droplet_load", "Load of droplet"),
-            &["droplet", "type"],
+            &["droplet", "metric_type"],
         )?;
         registry.register(Box::new(droplet_bandwidth.clone()))?;
         registry.register(Box::new(droplet_cpu.clone()))?;
@@ -99,9 +99,25 @@ macro_rules! unwrap_or_return_ok {
     }
 }
 
-fn data_response_to_value(response: DataResponse) -> f64 {
+fn extract_last_value(response: DataResponse) -> f64 {
     response.data.result.iter()
         .flat_map(|x| x.values.iter())
+        .max_by_key(|x| x.timestamp)
+        .and_then(|x| x.value.parse::<f64>().ok())
+        .unwrap_or(0f64)
+}
+
+fn extract_meta_with_last_values(response: DataResponse) -> Vec<(MetricMetaInfo, f64)> {
+    response.data.result.into_iter()
+        .map(|x| {
+            let last_point = last_point_for_metric(&x);
+            let info = x.metric;
+            (info, last_point)
+        }).collect()
+}
+
+fn last_point_for_metric(metrics: &MetricsResponse) -> f64 {
+    metrics.values.iter()
         .max_by_key(|x| x.timestamp)
         .and_then(|x| x.value.parse::<f64>().ok())
         .unwrap_or(0f64)
@@ -136,9 +152,14 @@ impl DropletMetricsService for DropletMetricsServiceImpl {
         for droplet in droplets.iter() {
             for (interface, dir) in &metric_types {
                 let res = self.client
-                    .get_bandwidth(droplet.id, *interface, *dir, interval_start, interval_end)
-                    .await?;
-                let value = data_response_to_value(res);
+                    .get_bandwidth(
+                        droplet.id,
+                        *interface,
+                        *dir,
+                        interval_start,
+                        interval_end
+                    ).await?;
+                let value = extract_last_value(res);
                 let interface = match interface {
                     NetworkInterface::Public => "public",
                     NetworkInterface::Private => "private"
@@ -149,11 +170,11 @@ impl DropletMetricsService for DropletMetricsServiceImpl {
                 };
 
                 self.metrics.droplet_bandwidth
-                    .with(&std::collections::HashMap::from([
-                        ("droplet", droplet.name.as_str()),
-                        ("interface", interface),
-                        ("direction", direction),
-                    ])).set(value);
+                    .with_label_values(&[
+                        droplet.name.as_str(),
+                        interface,
+                        direction,
+                    ]).set(value);
             }
         }
 
@@ -173,14 +194,19 @@ impl DropletMetricsService for DropletMetricsServiceImpl {
 
         for droplet in self.droplet_store.list_droplets().iter() {
             let res = self.client
-                .get_cpu(droplet.id, interval_start, interval_end)
-                .await?;
-            let value = data_response_to_value(res);
-
-            self.metrics.droplet_cpu
-                .with(&std::collections::HashMap::from([
-                    ("droplet", droplet.name.as_str()),
-                ])).set(value);
+                .get_cpu(
+                    droplet.id,
+                    interval_start,
+                    interval_end
+                ).await?;
+            for (meta, value) in extract_meta_with_last_values(res) {
+                let mode = meta.mode.as_ref().map(String::as_str).unwrap_or("unknown");
+                self.metrics.droplet_cpu
+                    .with_label_values(&[
+                        droplet.name.as_str(),
+                        mode
+                    ]).set(value);
+            }
         }
 
         let droplets = self.droplet_store.list_droplets();
@@ -210,22 +236,33 @@ impl DropletMetricsService for DropletMetricsServiceImpl {
         let interval_start = interval_end - Duration::minutes(10);
 
         for droplet in self.droplet_store.list_droplets().iter() {
-            for metrics_types in &filesystem_types {
+            for metrics_type in &filesystem_types {
                 let res = self.client
-                    .get_file_system(droplet.id, *metrics_types, interval_start, interval_end)
-                    .await?;
-                let value = data_response_to_value(res);
+                    .get_file_system(
+                        droplet.id,
+                        *metrics_type,
+                        interval_start,
+                        interval_end
+                    ).await?;
 
-                let fs_type_str = match metrics_types {
+                let fs_metrics_type_str = match metrics_type {
                     FileSystemRequest::Free => "free",
                     FileSystemRequest::Size => "size"
                 };
+                for (meta, value) in extract_meta_with_last_values(res) {
+                    let device = meta.device.as_ref().map(String::as_str).unwrap_or("unknown");
+                    let fstype = meta.fstype.as_ref().map(String::as_str).unwrap_or("unknown");
+                    let mountpoint = meta.mountpoint.as_ref().map(String::as_str).unwrap_or("unknown");
 
-                self.metrics.droplet_filesystem
-                    .with(&std::collections::HashMap::from([
-                        ("droplet", droplet.name.as_str()),
-                        ("type", fs_type_str),
-                    ])).set(value);
+                    self.metrics.droplet_filesystem
+                        .with_label_values(&[
+                            droplet.name.as_str(),
+                            fs_metrics_type_str,
+                            device,
+                            fstype,
+                            mountpoint
+                        ]).set(value);
+                }
             }
         }
 
@@ -262,9 +299,13 @@ impl DropletMetricsService for DropletMetricsServiceImpl {
         for droplet in self.droplet_store.list_droplets().iter() {
             for memory_type in &memory_types {
                 let res = self.client
-                    .get_droplet_memory(droplet.id, *memory_type, interval_start, interval_end)
-                    .await?;
-                let value = data_response_to_value(res);
+                    .get_droplet_memory(
+                        droplet.id,
+                        *memory_type,
+                        interval_start,
+                        interval_end,
+                    ).await?;
+                let value = extract_last_value(res);
 
                 let memory_type_str = match memory_type {
                     MemoryRequest::CachedMemory => "free",
@@ -274,10 +315,10 @@ impl DropletMetricsService for DropletMetricsServiceImpl {
                 };
 
                 self.metrics.droplet_memory
-                    .with(&std::collections::HashMap::from([
-                        ("droplet", droplet.name.as_str()),
-                        ("type", memory_type_str),
-                    ])).set(value);
+                    .with_label_values(&[
+                        droplet.name.as_str(),
+                        memory_type_str,
+                    ]).set(value);
             }
         }
 
@@ -298,7 +339,6 @@ impl DropletMetricsService for DropletMetricsServiceImpl {
         let enable_load5 = load.types.contains(&LoadTypes::Load5);
         let enable_load15 = load.types.contains(&LoadTypes::Load15);
 
-
         let load_types: Vec<_> = [
             (enable_load1, ClientLoadType::Load1),
             (enable_load5, ClientLoadType::Load5),
@@ -313,9 +353,14 @@ impl DropletMetricsService for DropletMetricsServiceImpl {
         for droplet in self.droplet_store.list_droplets().iter() {
             for load_type in &load_types {
                 let res = self.client
-                    .get_load(droplet.id, *load_type, interval_start, interval_end)
+                    .get_load(
+                        droplet.id,
+                        *load_type,
+                        interval_start,
+                        interval_end
+                    )
                     .await?;
-                let value = data_response_to_value(res);
+                let value = extract_last_value(res);
 
                 let load_type_str = match load_type {
                     ClientLoadType::Load1 => "load_1",
@@ -324,10 +369,10 @@ impl DropletMetricsService for DropletMetricsServiceImpl {
                 };
 
                 self.metrics.droplet_load
-                    .with(&std::collections::HashMap::from([
-                        ("droplet", droplet.name.as_str()),
-                        ("type", load_type_str),
-                    ])).set(value);
+                    .with_label_values(&[
+                        droplet.name.as_str(),
+                        load_type_str,
+                    ]).set(value);
             }
         }
 

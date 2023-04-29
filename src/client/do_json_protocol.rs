@@ -28,21 +28,35 @@ pub struct DataResponse {
 
 #[derive(Deserialize, PartialEq, Debug)]
 pub struct DataResult {
-    pub result: Vec<Metrics>,
+    pub result: Vec<MetricsResponse>,
 }
 
 #[derive(Deserialize, PartialEq, Debug)]
-pub struct Metrics {
-    metric: MetricMetaInfo,
+pub struct MetricsResponse {
+    pub metric: MetricMetaInfo,
     #[serde(deserialize_with = "deserialize_points")]
     pub values: Vec<MetricPoint>,
 }
 
-
+// Of course, I could use generics here, but I think it would be much harder to work with and understand.
+// So, I prefer to create a bit of chaos =)
+// Also, if Digital Ocean ever decides to change the protocol, everything would continue to work, just with unknown labels.
 #[derive(Deserialize, PartialEq, Debug)]
 pub struct MetricMetaInfo {
-    host_id: String,
-    mode: Option<String>
+    pub host_id: String,
+
+    // for cpu
+    pub mode: Option<String>,
+
+    // for filesystem_free / filesystem_size
+    pub device: Option<String>,
+    pub fstype: Option<String>,
+    pub mountpoint: Option<String>
+}
+
+#[derive(Deserialize, PartialEq, Debug)]
+pub struct MetricMetaDefault {
+    pub host_id: String
 }
 
 #[derive(PartialEq, Debug)]
@@ -84,7 +98,7 @@ fn deserialize_points<'de, D>(deserializer: D) -> Result<Vec<MetricPoint>, D::Er
 
 #[cfg(test)]
 mod deserialize_test {
-    use crate::client::do_json_protocol::{DataResponse, DataResult, DropletResponse, ListDropletsResponse, MetricMetaInfo, MetricPoint, Metrics};
+    use crate::client::do_json_protocol::{DataResponse, DataResult, DropletResponse, ListDropletsResponse, MetricMetaInfo, MetricPoint, MetricsResponse};
 
     #[test]
     fn deserialize_droplets() {
@@ -115,7 +129,7 @@ mod deserialize_test {
             status: "success".into(),
             data: DataResult {
                 result: vec![
-                    Metrics {
+                    MetricsResponse {
                         metric: MetricMetaInfo {
                             host_id: "335943309".into(),
                             mode: None,
