@@ -1,4 +1,6 @@
 
+
+
 endpoint:
   port: 8888
   host: "0.0.0.0"
@@ -22,10 +24,10 @@ agent-metrics:
     - requests
     - jobs
 
-default-keys: ["${AGENT_KEY}"]
+default-keys: [ "${AGENT_KEY}", "${AGENT_KEY2}" ]
 
 droplets:
-  keys: ["123"]
+  keys: [ ]
   url: "https://api.digitalocean.com/v2/droplets"
   interval: 1h
   metrics:
@@ -38,27 +40,27 @@ metrics:
   base-url: "https://api.digitalocean.com/v2/monitoring/metrics/droplet"
   bandwidth:
     types: [ private_inbound, private_outbound, public_inbound, public_outbound ]
-    keys: []
-    interval: 10s
+    keys: [ "${AGENT_KEY3}" ]
+    interval: 20s
     enabled: true
   cpu:
-    keys: []
+    keys: [ ]
     interval: 15s
     enabled: true
   filesystem:
-    types: [ free, size ]
-    keys: []
-    interval: 60s
+    types: [ free ] #[ free, size ]
+    keys: [ ]
+    interval: 12s
     enabled: true
   memory:
-    types: [ cached, free, total, available ]
-    keys: []
-    interval: 10s
+    types: [ free ] # [ cached, free, total, available ]
+    keys: [ ]
+    interval: 20s
     enabled: true
   load:
-    types: [ load_1, load_5, load_15 ]
-    keys: []
-    interval: 10s
+    types: [ ]#[ load_1, load_5, load_15 ]
+    keys: [ ]
+    interval: 30s
     enabled: true
 
 

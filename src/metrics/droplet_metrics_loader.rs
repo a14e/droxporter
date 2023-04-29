@@ -7,7 +7,6 @@ use reqwest::Client;
 use crate::client::do_client::{ClientLoadType, DigitalOceanClient, FileSystemRequest, MemoryRequest, NetworkDirection, NetworkInterface};
 use crate::client::do_json_protocol::DataResponse;
 use crate::config::config_model::{AppSettings, BandwidthType, FilesystemTypes, LoadTypes, MemoryTypes};
-use crate::config::config_model::DropletMetricsTypes::Memory;
 use crate::metrics::droplet_store::DropletStore;
 use crate::metrics::utils;
 
@@ -33,13 +32,14 @@ impl DropletMetricsServiceImpl {
     pub fn new(client: Arc<dyn DigitalOceanClient>,
                droplet_store: Arc<dyn DropletStore>,
                configs: &'static AppSettings,
-               registry: prometheus::Registry) -> Self {
-        Self {
+               registry: prometheus::Registry) -> anyhow::Result<Self> {
+        let result = Self {
             client,
             droplet_store,
             configs,
-            metrics: Metrics::new(registry),
-        }
+            metrics: Metrics::new(registry)?,
+        };
+        Ok(result)
     }
 }
 
@@ -53,39 +53,40 @@ struct Metrics {
 }
 
 impl Metrics {
-    fn new(registry: prometheus::Registry) -> Self {
+    fn new(registry: prometheus::Registry) -> anyhow::Result<Self> {
         let droplet_bandwidth = prometheus::GaugeVec::new(
             Opts::new("droxporter_droplet_bandwidth", "Bandwidth of droplet"),
             &["droplet", "interface", "direction"],
-        ).unwrap();
+        )?;
         let droplet_cpu = prometheus::GaugeVec::new(
             Opts::new("droxporter_droplet_cpu", "CPU usage of droplet"),
             &["droplet"],
-        ).unwrap();
+        )?;
         let droplet_filesystem = prometheus::GaugeVec::new(
             Opts::new("droxporter_droplet_filesystem", "Filesystem usage of droplet"),
             &["droplet", "type"],
-        ).unwrap();
+        )?;
         let droplet_memory = prometheus::GaugeVec::new(
             Opts::new("droxporter_droplet_memory", "Memory usage of droplet"),
             &["droplet", "type"],
-        ).unwrap();
+        )?;
         let droplet_load = prometheus::GaugeVec::new(
             Opts::new("droxporter_droplet_load", "Load of droplet"),
             &["droplet", "type"],
-        ).unwrap();
-        registry.register(Box::new(droplet_bandwidth.clone())).unwrap();
-        registry.register(Box::new(droplet_cpu.clone())).unwrap();
-        registry.register(Box::new(droplet_filesystem.clone())).unwrap();
-        registry.register(Box::new(droplet_memory.clone())).unwrap();
-        registry.register(Box::new(droplet_load.clone())).unwrap();
-        Self {
+        )?;
+        registry.register(Box::new(droplet_bandwidth.clone()))?;
+        registry.register(Box::new(droplet_cpu.clone()))?;
+        registry.register(Box::new(droplet_filesystem.clone()))?;
+        registry.register(Box::new(droplet_memory.clone()))?;
+        registry.register(Box::new(droplet_load.clone()))?;
+        let result = Self {
             droplet_bandwidth,
             droplet_cpu,
             droplet_filesystem,
             droplet_memory,
             droplet_load,
-        }
+        };
+        Ok(result)
     }
 }
 
@@ -129,8 +130,7 @@ impl DropletMetricsService for DropletMetricsServiceImpl {
             .collect();
 
         let interval_end = Utc::now();
-        let interval_start = interval_end - Duration::minutes(30);
-
+        let interval_start = interval_end - Duration::minutes(10);
 
         let droplets = self.droplet_store.list_droplets();
         for droplet in droplets.iter() {
@@ -169,7 +169,7 @@ impl DropletMetricsService for DropletMetricsServiceImpl {
 
     async fn load_cpu_metrics(&self) -> anyhow::Result<()> {
         let interval_end = Utc::now();
-        let interval_start = interval_end - Duration::minutes(30);
+        let interval_start = interval_end - Duration::minutes(10);
 
         for droplet in self.droplet_store.list_droplets().iter() {
             let res = self.client
@@ -207,7 +207,7 @@ impl DropletMetricsService for DropletMetricsServiceImpl {
             .collect();
 
         let interval_end = Utc::now();
-        let interval_start = interval_end - Duration::minutes(30);
+        let interval_start = interval_end - Duration::minutes(10);
 
         for droplet in self.droplet_store.list_droplets().iter() {
             for metrics_types in &filesystem_types {

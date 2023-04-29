@@ -13,19 +13,23 @@ pub struct AgentMetricsImpl {
     system: Arc<Mutex<sysinfo::System>>,
     cpu: Gauge,
     memory: Gauge,
+    start_time: Gauge,
 }
 
 impl AgentMetricsImpl {
     pub fn new(registry: Registry) -> Self {
         let system = System::new();
-        let cpu = Gauge::new("droxporter_self_cpu_usage", "CPU usage of DO Loading agent").unwrap();
+        let cpu = Gauge::new("droxporter_self_cpu_usage_percents", "CPU usage of DO Loading agent").unwrap();
         let memory = Gauge::new("droxporter_self_memory_usage", "CPU usage of DO Loading agent").unwrap();
+        let start_time = Gauge::new("droxporter_self_start_time_seconds", "Start time  (in seconds) from epoch of DO Loading agent").unwrap();
         registry.register(Box::new(cpu.clone())).unwrap();
         registry.register(Box::new(memory.clone())).unwrap();
+        registry.register(Box::new(start_time.clone())).unwrap();
         Self {
             system: Arc::new(Mutex::new(system)),
             cpu,
             memory,
+            start_time
         }
     }
 }
@@ -42,7 +46,8 @@ impl AgentMetricsService for AgentMetricsImpl {
             .ok_or(anyhow::Error::msg("Process not found"))?;
 
         self.cpu.set(process.cpu_usage() as f64);
-        self.memory.set((process.memory()) as f64 * 1024.0);
+        self.memory.set((process.memory()) as f64);
+        self.start_time.set(process.start_time()as f64);
         Ok(())
     }
 }

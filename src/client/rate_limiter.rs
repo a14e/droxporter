@@ -30,6 +30,14 @@ impl<const Limits: usize> MultiLimits<Limits> {
             .all(|x| x.can_acquire(millis))
     }
 
+    pub fn estimate_remaining<Time: ToMillis>(&self,
+                                              idx: usize,
+                                              current_time: Time) -> usize {
+        if idx >= Limits {
+            return 0
+        }
+        self.limits[idx].estimate_remaining(current_time.to_millis())
+    }
 
     pub fn acquire<Time: ToMillis>(&mut self,
                                    current_time: Time) -> bool {
@@ -50,7 +58,7 @@ pub struct RateLimiter {
     last_attempt_time: usize,
     limit: usize,
     limit_time_interval: usize,
-    multiplication_ratio: f32
+    multiplication_ratio: f32,
 }
 
 impl RateLimiter {
@@ -63,7 +71,7 @@ impl RateLimiter {
             limit,
             limit_time_interval: limit_interval,
             last_attempt_time: current_time,
-            multiplication_ratio
+            multiplication_ratio,
         }
     }
 
@@ -73,8 +81,8 @@ impl RateLimiter {
         self.estimate_remaining(current_time) > 0
     }
 
-    fn estimate_remaining(&self,
-                          current_time: usize) -> usize {
+    pub fn estimate_remaining(&self,
+                              current_time: usize) -> usize {
         let time_diff = current_time.saturating_sub(self.last_attempt_time);
 
         let next_count = self.remaining +
@@ -176,7 +184,7 @@ mod multi_limits {
         let limiter = MultiLimits::new(
             [
                 (10, 10),
-                 (100, 100)
+                (100, 100)
             ], 0);
         assert!(limiter.can_acquire(2))
     }
@@ -184,10 +192,10 @@ mod multi_limits {
     #[test]
     fn dont_pass_on_exceeded_small_limit() {
         let mut limiter = MultiLimits::new(
-        [
-            (10, 10),
-            (100, 100)
-        ], 0);
+            [
+                (10, 10),
+                (100, 100)
+            ], 0);
         for _ in 0..100 {
             let _ = limiter.acquire(10);
         }

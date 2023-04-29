@@ -1,5 +1,5 @@
 use std::sync::Arc;
-use ahash::{HashMap, HashSet};
+use ahash::{HashSet};
 use async_trait::async_trait;
 use parking_lot::{RwLock};
 use prometheus::Opts;

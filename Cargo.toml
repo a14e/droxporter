@@ -14,8 +14,7 @@ url = "2.3.1"
 
 tokio = { version = "1.27.0", features = ["full"] }
 
-inew = "0.2.2"
-prometheus = "0.13.3"
+prometheus = { version = "0.13.3", features = [] }
 
 sysinfo = "0.28.4"
 

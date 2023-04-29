@@ -269,7 +269,6 @@ dependencies = [
  "async-trait",
  "chrono",
  "humantime-serde",
- "inew",
  "mimalloc-rust",
  "parking_lot",
  "poem",
@@ -579,17 +578,6 @@ checksum = "bd070e393353796e801d209ad339e89596eb4c8d430d18ede6a1cced8fafbd99"
 dependencies = [
  "autocfg",
  "hashbrown",
-]
-
-[[package]]
-name = "inew"
-version = "0.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "decdcbbd51af18cd58dbe675e5c26e5489ffade549ffe19952b0ed18187e9db0"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 1.0.109",
 ]
 
 [[package]]

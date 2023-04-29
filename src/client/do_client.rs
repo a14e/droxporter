@@ -1,11 +1,14 @@
 use std::sync::Arc;
+use std::time::Instant;
 use async_trait::async_trait;
 use chrono::Utc;
+use prometheus::{HistogramOpts, Opts, Registry};
 use reqwest::StatusCode;
 use url::Url;
 use crate::client::do_json_protocol::{DataResponse, ListDropletsResponse};
 use crate::client::key_manager::{KeyManager, KeyType};
 use crate::config::config_model::AppSettings;
+use crate::metrics::utils::DROXPORTER_DEFAULT_BUCKETS;
 
 #[async_trait]
 pub trait DigitalOceanClient: Send + Sync {
@@ -70,11 +73,69 @@ pub enum ClientLoadType {
 }
 
 
-#[derive(inew::New, Clone)]
+#[derive(Clone)]
 pub struct DigitalOceanClientImpl {
     config: &'static AppSettings,
     client: reqwest::Client,
     token_manager: Arc<dyn KeyManager>,
+    metrics: DigitalOceanClientMetrics,
+}
+
+
+impl DigitalOceanClientImpl {
+    pub fn new(config: &'static AppSettings,
+               client: reqwest::Client,
+               token_manager: Arc<dyn KeyManager>,
+               registry: Registry) -> anyhow::Result<Self> {
+        let result = Self {
+            config,
+            client,
+            token_manager,
+            metrics: DigitalOceanClientMetrics::new(registry)?,
+        };
+        Ok(result)
+    }
+}
+
+#[derive(Clone)]
+struct DigitalOceanClientMetrics {
+    requests_counter: prometheus::CounterVec,
+    request_histogram: prometheus::HistogramVec,
+}
+
+impl DigitalOceanClientMetrics {
+    fn new(registry: Registry) -> anyhow::Result<Self> {
+        let requests_counter = prometheus::CounterVec::new(
+            Opts::new("droxporter_digital_ocean_request_counter", "Counter of droxporter http request"),
+            &["type", "result"],
+        )?;
+        let request_histogram = prometheus::HistogramVec::new(
+            HistogramOpts::new("droxporter_digital_ocean_request_histogram_seconds", "Time of droxporter http request")
+                .buckets((*DROXPORTER_DEFAULT_BUCKETS).into()),
+            &["type", "result"],
+        )?;
+        registry.register(Box::new(requests_counter.clone()))?;
+        registry.register(Box::new(request_histogram.clone()))?;
+        let result = Self {
+            requests_counter,
+            request_histogram,
+        };
+        Ok(result)
+    }
+
+    fn record_client_metrics(&self,
+                             request: &str,
+                             response_code: &str,
+                             start_time: Instant) {
+        let elasped_time_seconds = start_time.elapsed().as_millis() as f64 / 1000.0f64;
+
+        self.request_histogram
+            .with_label_values(&[request, response_code])
+            .observe(elasped_time_seconds);
+        self.requests_counter
+            .with_label_values(&[request, response_code])
+            .inc();
+    }
 }
 
 
@@ -84,9 +145,9 @@ impl DigitalOceanClientImpl {
                                   host_id: u64,
                                   start: chrono::DateTime<Utc>,
                                   end: chrono::DateTime<Utc>) -> anyhow::Result<DataResponse> {
+        let suffix = request_type.to_request_suffix()?;
         let mut url = {
             let base = self.config.metrics.base_url.as_str();
-            let suffix = request_type.to_request_suffix()?;
             let str = format!("{base}/{suffix}"); // or path_segments_mut?
             Url::parse(str.as_str())?
         };
@@ -98,6 +159,7 @@ impl DigitalOceanClientImpl {
 
 
         let bearer = self.token_manager.acquire_key(request_type.into())?;
+        let time = Instant::now();
 
         let response = self.client
             .get(url)
@@ -105,15 +167,18 @@ impl DigitalOceanClientImpl {
             .send()
             .await?;
 
+        self.metrics.record_client_metrics(suffix, response.status().as_str(), time);
+
         if response.status() != StatusCode::OK && response.status() != StatusCode::NO_CONTENT {
             let status = response.status();
             let body = response.text().await?;
             let err = format!("Request failed with ststus code: {status}, body: {body}");
-            return Err(anyhow::Error::msg(err))
+            return Err(anyhow::Error::msg(err));
         }
 
         let res = response.json::<DataResponse>()
             .await?;
+
 
         Ok(res)
     }
@@ -200,18 +265,20 @@ impl DigitalOceanClient for DigitalOceanClientImpl {
             .append_pair("page", page.to_string().as_str());
 
         let bearer = self.token_manager.acquire_key(RequestType::Droplets.into())?;
+        let time = Instant::now();
 
         let response = self.client
             .get(url)
             .bearer_auth(bearer)
             .send()
             .await?;
+        self.metrics.record_client_metrics("list_droplets", response.status().as_str(), time);
 
         if response.status() != StatusCode::OK && response.status() != StatusCode::NO_CONTENT {
             let status = response.status();
             let body = response.text().await?;
             let err = format!("Request failed with status code: {status}, body: {body}");
-            return Err(anyhow::Error::msg(err))
+            return Err(anyhow::Error::msg(err));
         }
 
         let res = response.json::<ListDropletsResponse>()
@@ -244,6 +311,7 @@ impl DigitalOceanClient for DigitalOceanClientImpl {
             .append_pair("end", end.timestamp().to_string().as_str());
 
         let bearer = self.token_manager.acquire_key(RequestType::Bandwidth.into())?;
+        let time = Instant::now();
 
         let response = self.client
             .get(url)
@@ -251,11 +319,13 @@ impl DigitalOceanClient for DigitalOceanClientImpl {
             .send()
             .await?;
 
+        self.metrics.record_client_metrics("bandwidth", response.status().as_str(), time);
+
         if response.status() != StatusCode::OK && response.status() != StatusCode::NO_CONTENT {
             let status = response.status();
             let body = response.text().await?;
             let err = format!("Request failed with status code: {status}, body: {body}");
-            return Err(anyhow::Error::msg(err))
+            return Err(anyhow::Error::msg(err));
         }
 
         let res = response.json::<DataResponse>().await?;

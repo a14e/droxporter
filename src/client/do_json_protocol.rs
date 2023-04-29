@@ -33,8 +33,16 @@ pub struct DataResult {
 
 #[derive(Deserialize, PartialEq, Debug)]
 pub struct Metrics {
+    metric: MetricMetaInfo,
     #[serde(deserialize_with = "deserialize_points")]
     pub values: Vec<MetricPoint>,
+}
+
+
+#[derive(Deserialize, PartialEq, Debug)]
+pub struct MetricMetaInfo {
+    host_id: String,
+    mode: Option<String>
 }
 
 #[derive(PartialEq, Debug)]
@@ -76,7 +84,7 @@ fn deserialize_points<'de, D>(deserializer: D) -> Result<Vec<MetricPoint>, D::Er
 
 #[cfg(test)]
 mod deserialize_test {
-    use crate::client::do_json_protocol::{DataResponse, DataResult, DropletResponse, ListDropletsResponse, MetricPoint, Metrics};
+    use crate::client::do_json_protocol::{DataResponse, DataResult, DropletResponse, ListDropletsResponse, MetricMetaInfo, MetricPoint, Metrics};
 
     #[test]
     fn deserialize_droplets() {
@@ -108,6 +116,10 @@ mod deserialize_test {
             data: DataResult {
                 result: vec![
                     Metrics {
+                        metric: MetricMetaInfo {
+                            host_id: "335943309".into(),
+                            mode: None,
+                        },
                         values: vec![
                             MetricPoint { timestamp: 1682246520, value: "0.00011012000000000001".into() },
                             MetricPoint { timestamp: 1682246760, value: "0.00025643564356435644".into() },

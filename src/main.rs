@@ -49,7 +49,7 @@ async fn main() -> anyhow::Result<()> {
     let configs: &'static _ = Box::leak(Box::new(configs.clone()));
     let registry = prometheus::Registry::new();
 
-    let scheduler = build_app(registry.clone(), configs);
+    let scheduler = build_app(registry.clone(), configs)?;
     let scheduler = Arc::new(scheduler);
 
 
@@ -94,13 +94,14 @@ async fn main() -> anyhow::Result<()> {
 
 
 fn build_app(registry: Registry,
-             configs: &'static AppSettings) -> MetricsSchedulerImpl {
-    let key_manager = KeyManagerImpl::new(configs);
+             configs: &'static AppSettings) -> anyhow::Result<MetricsSchedulerImpl> {
+    let key_manager = KeyManagerImpl::new(configs, registry.clone())?;
     let client = DigitalOceanClientImpl::new(
         configs,
         reqwest::Client::new(),
         Arc::new(key_manager),
-    );
+        registry.clone()
+    )?;
     let agent_metrics = AgentMetricsImpl::new(registry.clone());
     let droplets_store = DropletStoreImpl::new(
         Arc::new(client.clone()),
@@ -112,16 +113,15 @@ fn build_app(registry: Registry,
         Arc::new(droplets_store.clone()),
         configs,
         registry.clone(),
-    );
+    )?;
 
-    let scheduler: MetricsSchedulerImpl = {
-        MetricsSchedulerImpl::new(
-            Arc::new(client.clone()),
-            configs,
-            Arc::new(droplets_store.clone()),
-            Arc::new(droplets_metrics_loader),
-            Arc::new(agent_metrics),
-        )
-    };
-    scheduler
+    let scheduler: MetricsSchedulerImpl = MetricsSchedulerImpl::new(
+        Arc::new(client.clone()),
+        configs,
+        Arc::new(droplets_store.clone()),
+        Arc::new(droplets_metrics_loader),
+        Arc::new(agent_metrics),
+        registry.clone(),
+    )?;
+    Ok(scheduler)
 }
