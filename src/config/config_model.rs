@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use serde::Deserialize;
 
 pub type Key = String;
@@ -11,8 +12,17 @@ pub struct AppSettings {
     pub metrics: MetricsConfig,
     pub agent_metrics: AgentMetricsConfigs,
     pub endpoint: EndpointConfig,
+    pub custom: CustomSettings
 }
 
+#[derive(Deserialize, Clone, Default)]
+#[serde(rename_all = "kebab-case")]
+pub struct CustomSettings {
+    #[serde(default)]
+    pub prefix: Option<String>,
+    #[serde(default)]
+    pub labels: HashMap<String, String>,
+}
 
 #[derive(Deserialize, Clone, Default)]
 #[serde(rename_all = "kebab-case")]
@@ -43,9 +53,11 @@ pub struct AuthSettings {
     #[serde(default = "default_password")]
     pub password: String,
 }
+
 fn default_login() -> String {
     "droxporter".into()
 }
+
 fn default_password() -> String {
     "password".into()
 }

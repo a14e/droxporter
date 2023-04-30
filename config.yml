@@ -11,9 +11,12 @@ endpoint:
     key-path: "${SSL_KEY_PATH:./key.pem}"
 
 
-custom-labels:
-  app: droxporter
-  system-type: agent
+
+custom:
+  prefix: ""
+  labels:
+   # app: droxporter
+   # system-type: agent
 
 
 agent-metrics:

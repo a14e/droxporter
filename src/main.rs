@@ -69,7 +69,15 @@ async fn main() -> anyhow::Result<()> {
 
     let configs = config::parse::parse_configs("./config.yml".into())?;
     let configs: &'static _ = Box::leak(Box::new(configs.clone()));
-    let registry = prometheus::Registry::new();
+    let registry = {
+        let trimmed_prefix = configs.custom.prefix.as_ref()
+            .map(|x| x.as_str().trim())
+            .filter(|x| !x.is_empty())
+            .map(Into::into);
+        let labels = configs.custom.labels.clone();
+        let labels = Some(labels).filter(|x| !x.is_empty());
+        prometheus::Registry::new_custom(trimmed_prefix, labels)?
+    };
 
     let scheduler = build_app(registry.clone(), configs)?;
     let scheduler = Arc::new(scheduler);
