@@ -1,17 +1,19 @@
-
-
-
 endpoint:
   port: 8888
   host: "0.0.0.0"
-  credentials:
-    login: "login"
-    password: "password"
+  auth:
+    enabled: false
+    login: "${AUTH_LOGIN:droxporter}"
+    password: "${AUTH_PASSWORD:droxporter}"
   ssl:
-    enabled: ${SSL_ENABLED:true}
+    enabled: false
     root-cert-path: "${SSL_ROOT_CERT_PATH:./cert.pem}"
     key-path: "${SSL_KEY_PATH:./key.pem}"
 
+
+custom-labels:
+  app: droxporter
+  system-type: agent
 
 
 agent-metrics:

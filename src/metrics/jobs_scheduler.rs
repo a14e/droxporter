@@ -4,7 +4,6 @@ use async_trait::async_trait;
 use prometheus::{HistogramOpts, Opts, Registry};
 use tokio::time::Instant;
 use tracing::{error, info};
-use crate::client::do_client::DigitalOceanClient;
 use crate::config::config_model::AppSettings;
 use crate::metrics::agent_metrics::AgentMetricsService;
 use crate::metrics::droplet_metrics_loader::DropletMetricsService;
@@ -23,7 +22,6 @@ pub trait MetricsScheduler: Send + Sync {
 }
 
 pub struct MetricsSchedulerImpl {
-    client: Arc<dyn DigitalOceanClient>,
     configs: &'static AppSettings,
     droplet_store: Arc<dyn DropletStore>,
     metrics_service: Arc<dyn DropletMetricsService>,
@@ -35,8 +33,7 @@ pub struct MetricsSchedulerImpl {
 
 
 impl MetricsSchedulerImpl {
-    pub fn new(client: Arc<dyn DigitalOceanClient>,
-               configs: &'static AppSettings,
+    pub fn new(configs: &'static AppSettings,
                droplet_store: Arc<dyn DropletStore>,
                metrics_service: Arc<dyn DropletMetricsService>,
                agent_service: Arc<dyn AgentMetricsService>,
@@ -54,7 +51,6 @@ impl MetricsSchedulerImpl {
         registry.register(Box::new(jobs_histogram.clone()))?;
 
         let result = Self {
-            client,
             configs,
             droplet_store,
             metrics_service,
@@ -110,8 +106,6 @@ impl MetricsScheduler for MetricsSchedulerImpl {
 
             self.record_job_metrics("droplet_loading", true, start)
         }
-
-        Ok(())
     }
 
     async fn run_bandwidth_metrics_loading(&self) -> anyhow::Result<()> {
@@ -282,7 +276,6 @@ impl MetricsScheduler for MetricsSchedulerImpl {
                 continue;
             }
         }
-        Ok(())
     }
 }
 

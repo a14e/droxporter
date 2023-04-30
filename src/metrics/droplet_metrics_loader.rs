@@ -1,9 +1,7 @@
 use std::sync::Arc;
-use ahash::HashMap;
 use async_trait::async_trait;
 use chrono::{Duration, Utc};
 use prometheus::Opts;
-use reqwest::Client;
 use crate::client::do_client::{ClientLoadType, DigitalOceanClient, FileSystemRequest, MemoryRequest, NetworkDirection, NetworkInterface};
 use crate::client::do_json_protocol::{DataResponse, MetricMetaInfo, MetricsResponse};
 use crate::config::config_model::{AppSettings, BandwidthType, FilesystemTypes, LoadTypes, MemoryTypes};

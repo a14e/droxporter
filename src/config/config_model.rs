@@ -10,6 +10,55 @@ pub struct AppSettings {
     pub droplets: DropletSettings,
     pub metrics: MetricsConfig,
     pub agent_metrics: AgentMetricsConfigs,
+    pub endpoint: EndpointConfig,
+}
+
+
+#[derive(Deserialize, Clone, Default)]
+#[serde(rename_all = "kebab-case")]
+pub struct EndpointConfig {
+    #[serde(default = "default_port")]
+    pub port: u16,
+    #[serde(default = "default_host")]
+    pub host: String,
+    pub auth: Option<AuthSettings>,
+    pub ssl: Option<SslSettings>,
+}
+
+fn default_port() -> u16 {
+    8888
+}
+
+fn default_host() -> String {
+    "0.0.0.0".into()
+}
+
+#[derive(Deserialize, Clone, Default)]
+#[serde(rename_all = "kebab-case")]
+pub struct AuthSettings {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default = "default_login")]
+    pub login: String,
+    #[serde(default = "default_password")]
+    pub password: String,
+}
+fn default_login() -> String {
+    "droxporter".into()
+}
+fn default_password() -> String {
+    "password".into()
+}
+
+#[derive(Deserialize, Clone, Default)]
+#[serde(rename_all = "kebab-case")]
+pub struct SslSettings {
+    #[serde(default)]
+    pub enabled: bool,
+    #[serde(default)]
+    pub root_cert_path: String,
+    #[serde(default)]
+    pub key_path: String,
 }
 
 #[derive(Deserialize, Clone, Default)]
@@ -197,14 +246,8 @@ pub enum LoadTypes {
 }
 
 
-// defaults for serde
-
 fn duration_10_seconds() -> std::time::Duration {
     std::time::Duration::from_secs(10)
-}
-
-fn duration_60_seconds() -> std::time::Duration {
-    std::time::Duration::from_secs(60)
 }
 
 fn duration_120_seconds() -> std::time::Duration {

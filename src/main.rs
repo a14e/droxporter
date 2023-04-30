@@ -3,18 +3,24 @@ mod client;
 mod metrics;
 
 
+use std::fs;
 use std::ops::Deref;
 use std::sync::Arc;
-use poem::{handler, IntoResponse};
-use poem::web::{Redirect};
+use anyhow::anyhow;
+use poem::handler;
 use poem::{EndpointExt, Route, Server};
 use poem::listener::{Listener, RustlsCertificate, RustlsConfig, TcpListener};
 use prometheus::Registry;
+use poem::web::{
+    headers,
+    headers::{authorization::Basic, HeaderMapExt},
+};
+use reqwest::StatusCode;
 use tracing::info;
 use tracing::metadata::LevelFilter;
 use crate::client::do_client::DigitalOceanClientImpl;
 use crate::client::key_manager::{KeyManager, KeyManagerImpl};
-use crate::config::config_model::{AgentMetricsConfigs, AppSettings};
+use crate::config::config_model::{AppSettings, SslSettings};
 use crate::metrics::agent_metrics::AgentMetricsImpl;
 use crate::metrics::droplet_metrics_loader::DropletMetricsServiceImpl;
 use crate::metrics::droplet_store::DropletStoreImpl;
@@ -27,7 +33,23 @@ static GLOBAL_MIMALLOC: mimalloc_rust::GlobalMiMalloc = mimalloc_rust::GlobalMiM
 
 #[handler]
 async fn prometheus_endpoint(request: &poem::Request,
-                             registry: poem::web::Data<&prometheus::Registry>) -> poem::Result<String> {
+                             registry: poem::web::Data<&Registry>,
+                             configs: poem::web::Data<&&'static AppSettings>) -> poem::Result<String> {
+    // Simple basic auth check
+    // I don't think that for a simple agent, it's worth using bcrypt or anything like that because:
+    //   1. The information is not sensitive.
+    //   2. It's easy to generate a long enough random password (60+ symbols), which should be sufficiently secure.
+    //   3. The time required for this check is two orders of magnitude lower than the variations in network latency. Therefore, I believe a timing attack is not possible.
+    if let Some(creds) = configs.endpoint.auth.as_ref().filter(|x| x.enabled) {
+        if let Some(headers::Authorization(auth)) = request.headers().typed_get::<headers::Authorization<Basic>>() {
+            if auth.username() != creds.login && auth.password() != creds.password {
+                return Err(poem::Error::from_status(StatusCode::UNAUTHORIZED));
+            }
+        } else {
+            return Err(poem::Error::from_status(StatusCode::UNAUTHORIZED));
+        }
+    }
+
     let encoder = prometheus::TextEncoder::new();
     let metric_families = registry.deref().gather();
     let result = encoder.encode_to_string(&metric_families)
@@ -45,7 +67,7 @@ async fn main() -> anyhow::Result<()> {
         .with_writer(non_blocking)
         .init();
 
-    let configs = config::parse::parse_configs("./config_example.yml".into())?;
+    let configs = config::parse::parse_configs("./config.yml".into())?;
     let configs: &'static _ = Box::leak(Box::new(configs.clone()));
     let registry = prometheus::Registry::new();
 
@@ -80,14 +102,29 @@ async fn main() -> anyhow::Result<()> {
 
     let route = Route::new()
         .at("/metrics", poem::get(prometheus_endpoint))
-        .data(registry);
+        .data(registry)
+        .data(configs);
 
     info!("Starting server");
     let bind_address = format!("0.0.0.0:8888");
-    let listener = TcpListener::bind(bind_address);
-    Server::new(listener)
-        .run(route)
-        .await?;
+    let ssl_enabled = configs.endpoint.ssl.as_ref().map(|x| x.enabled).unwrap_or_default();
+    if !ssl_enabled {
+        info!("Ssl is disabled");
+        let listener = TcpListener::bind(bind_address);
+        Server::new(listener)
+            .run(route)
+            .await?;
+    } else {
+        info!("Ssl is enabled");
+        let config = configs.endpoint.ssl.as_ref().unwrap_or_else(|| unreachable!());
+        let config = create_poem_tls_config(config)?;
+        let listener = TcpListener::bind(bind_address)
+            .rustls(config);
+        Server::new(listener)
+            .run(route)
+            .await?;
+    }
+
 
     Ok(())
 }
@@ -100,7 +137,7 @@ fn build_app(registry: Registry,
         configs,
         reqwest::Client::new(),
         Arc::new(key_manager),
-        registry.clone()
+        registry.clone(),
     )?;
     let agent_metrics = AgentMetricsImpl::new(registry.clone());
     let droplets_store = DropletStoreImpl::new(
@@ -116,7 +153,6 @@ fn build_app(registry: Registry,
     )?;
 
     let scheduler: MetricsSchedulerImpl = MetricsSchedulerImpl::new(
-        Arc::new(client.clone()),
         configs,
         Arc::new(droplets_store.clone()),
         Arc::new(droplets_metrics_loader),
@@ -124,4 +160,13 @@ fn build_app(registry: Registry,
         registry.clone(),
     )?;
     Ok(scheduler)
+}
+
+
+fn create_poem_tls_config(config: &SslSettings) -> anyhow::Result<RustlsConfig> {
+    let key = fs::read(config.key_path.as_str())?;
+    let cert = fs::read(config.root_cert_path.as_str())?;
+    let config = RustlsConfig::new()
+        .fallback(RustlsCertificate::new().key(key).cert(cert));
+    Ok(config)
 }

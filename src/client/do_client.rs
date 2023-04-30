@@ -172,12 +172,11 @@ impl DigitalOceanClientImpl {
         if response.status() != StatusCode::OK && response.status() != StatusCode::NO_CONTENT {
             let status = response.status();
             let body = response.text().await?;
-            let err = format!("Request failed with ststus code: {status}, body: {body}");
+            let err = format!("Request failed with status code: {status}, body: {body}");
             return Err(anyhow::Error::msg(err));
         }
 
-        let res = response.json::<DataResponse>()
-            .await?;
+        let res = response.json::<DataResponse>().await?;
 
 
         Ok(res)

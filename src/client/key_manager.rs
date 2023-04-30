@@ -249,7 +249,7 @@ impl KeyManagerState {
                 .count();
             self.keys_status_gauge
                 .with_label_values(&[metric_type, "active"])
-                .set(remaining_1_hour as f64);
+                .set(active_keys as f64);
             let inactive_keys = keys.len() - active_keys;
             self.keys_status_gauge
                 .with_label_values(&[metric_type, "exceeded"])

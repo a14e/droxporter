@@ -2,16 +2,16 @@ use chrono::{DateTime, Duration, Utc};
 
 // multi level implementation of https://en.wikipedia.org/wiki/Leaky_bucket
 #[derive(Copy, Clone, Debug)]
-pub struct MultiLimits<const Limits: usize> {
-    limits: [RateLimiter; Limits],
+pub struct MultiLimits<const LIMITS: usize> {
+    limits: [RateLimiter; LIMITS],
 }
 
 type Limit = usize;
 
-impl<const Limits: usize> MultiLimits<Limits> {
-    pub fn new<TimeInterval: ToMillis, Time: ToMillis>(limit_settings: [(Limit, TimeInterval); Limits],
+impl<const LIMITS: usize> MultiLimits<LIMITS> {
+    pub fn new<TimeInterval: ToMillis, Time: ToMillis>(limit_settings: [(Limit, TimeInterval); LIMITS],
                                                        current_time: Time) -> Self {
-        let mut limits = [RateLimiter::default(); Limits];
+        let mut limits = [RateLimiter::default(); LIMITS];
         for (idx, (limit, interval)) in limit_settings.into_iter().enumerate() {
             limits[idx] = RateLimiter::new(
                 limit,
@@ -33,7 +33,7 @@ impl<const Limits: usize> MultiLimits<Limits> {
     pub fn estimate_remaining<Time: ToMillis>(&self,
                                               idx: usize,
                                               current_time: Time) -> usize {
-        if idx >= Limits {
+        if idx >= LIMITS {
             return 0
         }
         self.limits[idx].estimate_remaining(current_time.to_millis())
