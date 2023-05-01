@@ -9,5 +9,5 @@ RUN cargo build --release
 # Final image stage
 FROM alpine:3.17
 WORKDIR /app
-COPY --from=build /usr/src/dropxporter/target/release/droxporter /app/dropxporter
+COPY --from=build /usr/src/droxporter/target/release/droxporter /app/droxporter
 CMD ["/app/droxporter"]
