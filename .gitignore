@@ -1,4 +1,6 @@
 /target
 .idea
 droxporter.iml
+key.pem
+cert.pem
 

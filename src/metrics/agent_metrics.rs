@@ -2,6 +2,7 @@ use std::sync::Arc;
 use parking_lot::Mutex;
 use prometheus::{Gauge, Registry};
 use sysinfo::{ProcessExt, System, SystemExt};
+use crate::config::config_model::{AgentMetricsType, AppSettings};
 
 pub trait AgentMetricsService: Send + Sync {
     fn load_agent_metrics(&self) -> anyhow::Result<()>;
@@ -10,14 +11,16 @@ pub trait AgentMetricsService: Send + Sync {
 
 #[derive(Clone)]
 pub struct AgentMetricsImpl {
-    system: Arc<Mutex<sysinfo::System>>,
+    config: &'static AppSettings,
+    system: Arc<Mutex<System>>,
     cpu: Gauge,
     memory: Gauge,
     start_time: Gauge,
 }
 
 impl AgentMetricsImpl {
-    pub fn new(registry: Registry) -> Self {
+    pub fn new(config: &'static AppSettings,
+               registry: Registry) -> Self {
         let system = System::new();
         let cpu = Gauge::new("droxporter_self_cpu_usage_percents", "CPU usage of DO Loading agent").unwrap();
         let memory = Gauge::new("droxporter_self_memory_usage", "CPU usage of DO Loading agent").unwrap();
@@ -26,6 +29,7 @@ impl AgentMetricsImpl {
         registry.register(Box::new(memory.clone())).unwrap();
         registry.register(Box::new(start_time.clone())).unwrap();
         Self {
+            config,
             system: Arc::new(Mutex::new(system)),
             cpu,
             memory,
@@ -37,6 +41,13 @@ impl AgentMetricsImpl {
 
 impl AgentMetricsService for AgentMetricsImpl {
     fn load_agent_metrics(&self) -> anyhow::Result<()> {
+        let cpu_metrics_enabled = self.config.agent_metrics.enabled && {
+            self.config.agent_metrics.metrics.contains(&AgentMetricsType::Cpu)
+        };
+        let memory_metrics_enabled = self.config.agent_metrics.enabled && {
+            self.config.agent_metrics.metrics.contains(&AgentMetricsType::Memory)
+        };
+
         let mut system = self.system.lock();
         system.refresh_all();
 
@@ -45,8 +56,12 @@ impl AgentMetricsService for AgentMetricsImpl {
         let process = system.process(pid)
             .ok_or(anyhow::Error::msg("Process not found"))?;
 
-        self.cpu.set(process.cpu_usage() as f64);
-        self.memory.set((process.memory()) as f64);
+        if cpu_metrics_enabled {
+            self.cpu.set(process.cpu_usage() as f64);
+        }
+        if memory_metrics_enabled {
+            self.memory.set((process.memory()) as f64);
+        }
         self.start_time.set(process.start_time()as f64);
         Ok(())
     }

@@ -7,7 +7,7 @@ use reqwest::StatusCode;
 use url::Url;
 use crate::client::do_json_protocol::{DataResponse, ListDropletsResponse};
 use crate::client::key_manager::{KeyManager, KeyType};
-use crate::config::config_model::AppSettings;
+use crate::config::config_model::{AgentMetricsType, AppSettings};
 use crate::metrics::utils::DROXPORTER_DEFAULT_BUCKETS;
 
 #[async_trait]
@@ -91,7 +91,7 @@ impl DigitalOceanClientImpl {
             config,
             client,
             token_manager,
-            metrics: DigitalOceanClientMetrics::new(registry)?,
+            metrics: DigitalOceanClientMetrics::new(config, registry)?,
         };
         Ok(result)
     }
@@ -99,12 +99,14 @@ impl DigitalOceanClientImpl {
 
 #[derive(Clone)]
 struct DigitalOceanClientMetrics {
+    config: &'static AppSettings,
     requests_counter: prometheus::CounterVec,
     request_histogram: prometheus::HistogramVec,
 }
 
 impl DigitalOceanClientMetrics {
-    fn new(registry: Registry) -> anyhow::Result<Self> {
+    fn new(config: &'static AppSettings,
+           registry: Registry) -> anyhow::Result<Self> {
         let requests_counter = prometheus::CounterVec::new(
             Opts::new("droxporter_digital_ocean_request_counter", "Counter of droxporter http request"),
             &["type", "result"],
@@ -117,16 +119,27 @@ impl DigitalOceanClientMetrics {
         registry.register(Box::new(requests_counter.clone()))?;
         registry.register(Box::new(request_histogram.clone()))?;
         let result = Self {
+            config,
             requests_counter,
             request_histogram,
         };
         Ok(result)
     }
 
+    fn is_enabled(&self) -> bool {
+        self.config.agent_metrics.enabled && {
+            self.config.agent_metrics.metrics.contains(&AgentMetricsType::Requests)
+        }
+    }
+
     fn record_client_metrics(&self,
                              request: &str,
                              response_code: &str,
                              start_time: Instant) {
+        if !self.is_enabled() {
+            return;
+        }
+
         let elasped_time_seconds = start_time.elapsed().as_millis() as f64 / 1000.0f64;
 
         self.request_histogram

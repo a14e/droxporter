@@ -4,7 +4,7 @@ use chrono::{DateTime, Duration, Utc};
 use parking_lot::Mutex;
 use prometheus::{CounterVec, GaugeVec, Opts, Registry};
 use crate::client::rate_limiter::MultiLimits;
-use crate::config::config_model::AppSettings;
+use crate::config::config_model::{AgentMetricsType, AppSettings};
 
 
 pub trait KeyManager: Send + Sync {
@@ -19,7 +19,7 @@ pub struct KeyManagerImpl {
 }
 
 impl KeyManagerImpl {
-    pub fn new(configs: &AppSettings,
+    pub fn new(configs: &'static AppSettings,
                registry: Registry) -> anyhow::Result<Self> {
         let result = Self {
             state: Arc::new(Mutex::new(KeyManagerState::new(configs, registry)?))
@@ -51,6 +51,8 @@ fn create_key_limit(time: DateTime<Utc>) -> KeyLimit {
 }
 
 struct KeyManagerState {
+    configs: &'static AppSettings,
+
     keys: HashMap<KeyType, Vec<Key>>,
     limits: HashMap<Key, KeyLimit>,
 
@@ -87,7 +89,7 @@ impl KeyType {
 }
 
 impl KeyManagerState {
-    pub fn new(configs: &AppSettings,
+    pub fn new(configs: &'static AppSettings,
                registry: Registry) -> anyhow::Result<Self> {
         let mut keys: HashMap<KeyType, Vec<Key>> = Default::default();
 
@@ -149,7 +151,14 @@ impl KeyManagerState {
         registry.register(Box::new(keys_status_gauge.clone()))?;
         registry.register(Box::new(key_error_counter.clone()))?;
 
-        let result = Self { keys, limits, limits_gauge, keys_status_gauge, key_error_counter };
+        let result = Self {
+            configs,
+            keys,
+            limits,
+            limits_gauge,
+            keys_status_gauge,
+            key_error_counter,
+        };
         Ok(result)
     }
 }
@@ -164,8 +173,8 @@ impl KeyManagerState {
             None if key_type == KeyType::Default => anyhow::bail!("Api Key Not Found"),
             None => {
                 // return is important here to prevent double acquiring
-                return self.acquire_key(KeyType::Default)
-            },
+                return self.acquire_key(KeyType::Default);
+            }
             Some(keys) => {
                 let available_key = keys.iter()
                     .flat_map(|k|
@@ -203,7 +212,17 @@ impl KeyManagerState {
         Ok(key)
     }
 
+    fn are_metrics_enabled(&self) -> bool {
+        self.configs.agent_metrics.enabled && {
+            self.configs.agent_metrics.metrics.contains(&AgentMetricsType::Limits)
+        }
+    }
+
     fn record_fail(&self, key_type: KeyType) {
+        if !self.are_metrics_enabled() {
+            return;
+        }
+
         let key_not_found = self.keys.get(&key_type)
             .map(|x| x.is_empty())
             .unwrap_or(true);
@@ -221,6 +240,10 @@ impl KeyManagerState {
     }
 
     fn record_metrics(&self) {
+        if !self.are_metrics_enabled() {
+            return;
+        }
+
         let one_minute_idx = 0;
         let one_hour_idx = 1;
 
@@ -331,7 +354,6 @@ mod key_manager {
         configs.default_keys = vec!["default".into()];
 
         let manager = KeyManagerImpl::new(&configs, Registry::new()).unwrap();
-        ;
 
         let key = manager.acquire_key(KeyType::Memory).unwrap();
         assert_eq!(key, "default".to_string());

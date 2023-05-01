@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use prometheus::{HistogramOpts, Opts, Registry};
 use tokio::time::Instant;
 use tracing::{error, info};
-use crate::config::config_model::AppSettings;
+use crate::config::config_model::{AgentMetricsType, AppSettings};
 use crate::metrics::agent_metrics::AgentMetricsService;
 use crate::metrics::droplet_metrics_loader::DropletMetricsService;
 use crate::metrics::droplet_store::DropletStore;
@@ -62,10 +62,21 @@ impl MetricsSchedulerImpl {
     }
 
 
+    fn are_metrics_enabled(&self) -> bool {
+        self.configs.agent_metrics.enabled && {
+            self.configs.agent_metrics.metrics.contains(&AgentMetricsType::Jobs)
+        }
+    }
+
+
     fn record_job_metrics(&self,
                           job_name: &str,
                           success: bool,
                           start_time: Instant) {
+        if !self.are_metrics_enabled() {
+            return;
+        }
+
         let elasped_time_seconds = start_time.elapsed().as_millis() as f64 / 1000.0f64;
         let result = if success {
             "success"

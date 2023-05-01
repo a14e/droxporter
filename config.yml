@@ -3,8 +3,8 @@ endpoint:
   host: "0.0.0.0"
   auth:
     enabled: false
-    login: "${AUTH_LOGIN:droxporter}"
-    password: "${AUTH_PASSWORD:droxporter}"
+    login: "${AUTH_LOGIN:login}"
+    password: "${AUTH_PASSWORD:password}"
   ssl:
     enabled: false
     root-cert-path: "${SSL_ROOT_CERT_PATH:./cert.pem}"

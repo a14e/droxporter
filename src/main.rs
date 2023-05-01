@@ -75,7 +75,7 @@ async fn main() -> anyhow::Result<()> {
             .map(Into::into);
         let labels = configs.custom.labels.clone();
         let labels = Some(labels).filter(|x| !x.is_empty());
-        prometheus::Registry::new_custom(trimmed_prefix, labels)?
+        Registry::new_custom(trimmed_prefix, labels)?
     };
 
     let scheduler = build_app(registry.clone(), configs)?;
@@ -113,7 +113,11 @@ async fn main() -> anyhow::Result<()> {
         .data(configs);
 
     info!("Starting server");
-    let bind_address = format!("0.0.0.0:8888");
+    let bind_address = {
+        let host = configs.endpoint.host.as_str();
+        let port = configs.endpoint.port;
+        format!("{host}:{port}")
+    };
     let ssl_enabled = configs.endpoint.ssl.as_ref().map(|x| x.enabled).unwrap_or_default();
     if !ssl_enabled {
         info!("Ssl is disabled");
@@ -146,7 +150,7 @@ fn build_app(registry: Registry,
         Arc::new(key_manager),
         registry.clone(),
     )?;
-    let agent_metrics = AgentMetricsImpl::new(registry.clone());
+    let agent_metrics = AgentMetricsImpl::new(configs, registry.clone());
     let droplets_store = DropletStoreImpl::new(
         Arc::new(client.clone()),
         configs,
