@@ -228,8 +228,8 @@ impl DropletMetricsService for DropletMetricsServiceImpl {
         let enable_size = filesystem.types.contains(&FilesystemTypes::Size);
 
         let filesystem_types: Vec<_> = [
-            (enable_free, FileSystemRequest::Size),
-            (enable_size, FileSystemRequest::Free),
+            (enable_free, FileSystemRequest::Free),
+            (enable_size, FileSystemRequest::Size),
         ].iter().filter(|(enabled, _)| *enabled)
             .map(|(_, client_type)| *client_type)
             .collect();
