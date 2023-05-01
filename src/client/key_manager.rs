@@ -171,7 +171,13 @@ impl KeyManagerState {
                     .flat_map(|k|
                         self.limits.get(k)
                             .map(|settings| (k, settings))
-                    ).find(|(_, x)| x.can_acquire(current_time));
+                    ).filter(|(_, x)| x.can_acquire(current_time))
+                    .max_by_key(|(_, x)| {
+                        let one_minute_idx = 0;
+                        let one_hour_idx = 1;
+                        x.estimate_remaining(one_minute_idx, current_time) +
+                            x.estimate_remaining(one_hour_idx, current_time)
+                    });
                 match available_key {
                     None if key_type == KeyType::Default => anyhow::bail!("Available Api Key Not Found Or Limit exceeded"),
                     None => self.acquire_key(KeyType::Default),
