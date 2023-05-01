@@ -311,9 +311,9 @@ impl DropletMetricsService for DropletMetricsServiceImpl {
 
                 let memory_type_str = match memory_type {
                     MemoryRequest::CachedMemory => "cached",
-                    MemoryRequest::FreeMemory => "available",
+                    MemoryRequest::FreeMemory => "free",
                     MemoryRequest::TotalMemory => "total",
-                    MemoryRequest::AvailableTotalMemory => "free",
+                    MemoryRequest::AvailableTotalMemory => "available",
                 };
 
                 self.metrics.droplet_memory
