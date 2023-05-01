@@ -53,13 +53,14 @@ pub struct DropletStoreImpl {
 impl DropletStoreImpl {
     pub fn new(client: Arc<dyn DigitalOceanClient>,
                configs: &'static AppSettings,
-               registry: prometheus::Registry) -> Self {
-        Self {
+               registry: prometheus::Registry) -> anyhow::Result<Self> {
+        let result = Self {
             store: Arc::new(RwLock::new(vec![])),
             client,
             configs,
-            metrics: DropletsMetrics::new(registry)
-        }
+            metrics: DropletsMetrics::new(registry)?,
+        };
+        Ok(result)
     }
 }
 
@@ -70,38 +71,46 @@ struct DropletsMetrics {
     vcpu_gauge: prometheus::GaugeVec,
     disk_gauge: prometheus::GaugeVec,
     status_gauge: prometheus::GaugeVec,
+    transfer_gauge: prometheus::GaugeVec,
 }
 
 impl DropletsMetrics {
-    fn new(registry: prometheus::Registry) -> Self {
+    fn new(registry: prometheus::Registry) -> anyhow::Result<Self> {
         let memory_gauge = prometheus::GaugeVec::new(
             Opts::new("droxporter_droplet_memory_settings", "Memory settings of droplet"),
             &["droplet"],
-        ).unwrap();
+        )?;
         let vcpu_gauge = prometheus::GaugeVec::new(
             Opts::new("droxporter_droplet_vcpu_settings", "Cpu settings of droplet"),
             &["droplet"],
-        ).unwrap();
+        )?;
         let disk_gauge = prometheus::GaugeVec::new(
             Opts::new("droxporter_droplet_disk_settings", "Disk settings of droplet"),
             &["droplet"],
-        ).unwrap();
+        )?;
         let status_gauge = prometheus::GaugeVec::new(
             Opts::new("droxporter_droplet_status", "Status of droplet"),
             &["droplet", "status"],
-        ).unwrap();
+        )?;
+        let transfer_gauge = prometheus::GaugeVec::new(
+            Opts::new("droxporter_droplet_transfer", "Transfer settings of droplet"),
+            &["droplet"],
+        )?;
 
-        registry.register(Box::new(memory_gauge.clone())).unwrap();
-        registry.register(Box::new(vcpu_gauge.clone())).unwrap();
-        registry.register(Box::new(disk_gauge.clone())).unwrap();
-        registry.register(Box::new(status_gauge.clone())).unwrap();
+        registry.register(Box::new(memory_gauge.clone()))?;
+        registry.register(Box::new(vcpu_gauge.clone()))?;
+        registry.register(Box::new(disk_gauge.clone()))?;
+        registry.register(Box::new(status_gauge.clone()))?;
+        registry.register(Box::new(transfer_gauge.clone()))?;
 
-        Self {
+        let result = Self {
             memory_gauge,
             vcpu_gauge,
             disk_gauge,
             status_gauge,
-        }
+            transfer_gauge,
+        };
+        Ok(result)
     }
 }
 
@@ -136,6 +145,7 @@ impl DropletStore for DropletStoreImpl {
         let enabled_vcpu = self.configs.droplets.metrics.contains(&DropletMetricsTypes::VCpu);
         let enabled_disc = self.configs.droplets.metrics.contains(&DropletMetricsTypes::Disk);
         let enabled_status = self.configs.droplets.metrics.contains(&DropletMetricsTypes::Status);
+        let enabled_transfer = self.configs.droplets.metrics.contains(&DropletMetricsTypes::Transfer);
 
 
         for droplet in self.store.read().iter() {
@@ -168,6 +178,12 @@ impl DropletStore for DropletStoreImpl {
                         ("status", droplet.status.as_ref()),
                     ])).set(1 as f64);
             }
+            if enabled_transfer {
+                self.metrics.transfer_gauge
+                    .with(&std::collections::HashMap::from([
+                        ("droplet", name.as_ref()),
+                    ])).set(1 as f64);
+            }
         }
         let lock = self.store.read();
         let droplets: HashSet<_> = {
@@ -179,12 +195,12 @@ impl DropletStore for DropletStoreImpl {
         utils::remove_old_droplets(&self.metrics.vcpu_gauge, &droplets);
         utils::remove_old_droplets(&self.metrics.disk_gauge, &droplets);
         utils::remove_old_droplets(&self.metrics.status_gauge, &droplets);
+        utils::remove_old_droplets(&self.metrics.transfer_gauge, &droplets);
     }
 
     fn list_droplets(&self) -> Vec<BasicDropletInfo> {
         self.store.read().clone()
     }
-
 }
 
 

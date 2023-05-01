@@ -151,7 +151,7 @@ fn build_app(registry: Registry,
         Arc::new(client.clone()),
         configs,
         registry.clone(),
-    );
+    )?;
     let droplets_metrics_loader = DropletMetricsServiceImpl::new(
         Arc::new(client.clone()),
         Arc::new(droplets_store.clone()),
