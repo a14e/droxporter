@@ -295,7 +295,8 @@ mod key_manager {
 
     #[test]
     fn acquire_key() {
-        let mut configs = AppSettings::default();
+        // I don't like this stuff, but for tests, it seems to be okay.
+        let mut configs: &'static mut _ = Box::leak(Box::new(AppSettings::default()));
         configs.metrics.memory = Some(Default::default());
         configs.metrics.cpu = Some(Default::default());
         configs.metrics.load = Some(Default::default());
@@ -311,7 +312,7 @@ mod key_manager {
         configs.metrics.bandwidth.as_mut().unwrap().keys = vec!["bandwidth".into()];
         configs.droplets.keys = vec!["droplets".into()];
 
-        let manager = KeyManagerImpl::new(&configs, Registry::new()).unwrap();
+        let manager = KeyManagerImpl::new(configs, Registry::new()).unwrap();
 
         let key = manager.acquire_key(KeyType::Memory).unwrap();
         assert_eq!(key, "memory".to_string());
@@ -331,13 +332,13 @@ mod key_manager {
 
     #[test]
     fn fallback_to_second_key_on_limits() {
-        let mut configs = AppSettings::default();
+        let mut configs = Box::leak(Box::new(AppSettings::default()));
         configs.metrics.memory = Some(Default::default());
         configs.default_keys = vec!["default".into()];
 
         configs.metrics.memory.as_mut().unwrap().keys = vec!["memory".into()];
 
-        let manager = KeyManagerImpl::new(&configs, Registry::new()).unwrap();
+        let manager = KeyManagerImpl::new(configs, Registry::new()).unwrap();
 
         for _ in 0..250 {
             manager.acquire_key(KeyType::Memory).unwrap();
@@ -349,11 +350,11 @@ mod key_manager {
 
     #[test]
     fn fallback_to_default_if_not_found() {
-        let mut configs = AppSettings::default();
+        let mut configs = Box::leak(Box::new(AppSettings::default()));
         configs.metrics.memory = Some(Default::default());
         configs.default_keys = vec!["default".into()];
 
-        let manager = KeyManagerImpl::new(&configs, Registry::new()).unwrap();
+        let manager = KeyManagerImpl::new(configs, Registry::new()).unwrap();
 
         let key = manager.acquire_key(KeyType::Memory).unwrap();
         assert_eq!(key, "default".to_string());
