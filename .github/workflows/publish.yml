@@ -42,6 +42,6 @@ jobs:
           context: .
           builder: ${{ steps.buildx.outputs.name }}
           push: true
-          tags: your-dockerhub-username/dropxporter:${{ steps.prep.outputs.tag }}
+          tags: m0hct3r/dropxporter:${{ steps.prep.outputs.tag }}
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,dest=/tmp/.buildx-cache
