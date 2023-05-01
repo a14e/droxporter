@@ -141,8 +141,6 @@ pub enum DropletMetricsTypes {
     Disk,
     #[serde(rename = "status")]
     Status,
-    #[serde(rename = "transfer")]
-    Transfer,
 }
 
 #[derive(Deserialize, Clone, Default)]

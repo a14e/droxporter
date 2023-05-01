@@ -71,7 +71,6 @@ struct DropletsMetrics {
     vcpu_gauge: prometheus::GaugeVec,
     disk_gauge: prometheus::GaugeVec,
     status_gauge: prometheus::GaugeVec,
-    transfer_gauge: prometheus::GaugeVec,
 }
 
 impl DropletsMetrics {
@@ -92,23 +91,17 @@ impl DropletsMetrics {
             Opts::new("droxporter_droplet_status", "Status of droplet"),
             &["droplet", "status"],
         )?;
-        let transfer_gauge = prometheus::GaugeVec::new(
-            Opts::new("droxporter_droplet_transfer", "Transfer settings of droplet"),
-            &["droplet"],
-        )?;
 
         registry.register(Box::new(memory_gauge.clone()))?;
         registry.register(Box::new(vcpu_gauge.clone()))?;
         registry.register(Box::new(disk_gauge.clone()))?;
         registry.register(Box::new(status_gauge.clone()))?;
-        registry.register(Box::new(transfer_gauge.clone()))?;
 
         let result = Self {
             memory_gauge,
             vcpu_gauge,
             disk_gauge,
             status_gauge,
-            transfer_gauge,
         };
         Ok(result)
     }
@@ -145,7 +138,6 @@ impl DropletStore for DropletStoreImpl {
         let enabled_vcpu = self.configs.droplets.metrics.contains(&DropletMetricsTypes::VCpu);
         let enabled_disc = self.configs.droplets.metrics.contains(&DropletMetricsTypes::Disk);
         let enabled_status = self.configs.droplets.metrics.contains(&DropletMetricsTypes::Status);
-        let enabled_transfer = self.configs.droplets.metrics.contains(&DropletMetricsTypes::Transfer);
 
 
         for droplet in self.store.read().iter() {
@@ -178,12 +170,6 @@ impl DropletStore for DropletStoreImpl {
                         ("status", droplet.status.as_ref()),
                     ])).set(1 as f64);
             }
-            if enabled_transfer {
-                self.metrics.transfer_gauge
-                    .with(&std::collections::HashMap::from([
-                        ("droplet", name.as_ref()),
-                    ])).set(1 as f64);
-            }
         }
         let lock = self.store.read();
         let droplets: HashSet<_> = {
@@ -195,7 +181,6 @@ impl DropletStore for DropletStoreImpl {
         utils::remove_old_droplets(&self.metrics.vcpu_gauge, &droplets);
         utils::remove_old_droplets(&self.metrics.disk_gauge, &droplets);
         utils::remove_old_droplets(&self.metrics.status_gauge, &droplets);
-        utils::remove_old_droplets(&self.metrics.transfer_gauge, &droplets);
     }
 
     fn list_droplets(&self) -> Vec<BasicDropletInfo> {

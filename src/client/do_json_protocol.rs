@@ -16,7 +16,6 @@ pub struct DropletResponse {
     pub vcpus: u64,
     pub disk: u64,
     pub locked: bool,
-    pub transfer: f64,
     pub status: String,
 }
 
@@ -113,7 +112,6 @@ mod deserialize_test {
                     memory: 2048,
                     vcpus: 1,
                     disk: 50,
-                    transfer: 2.0f64,
                     locked: false,
                     status: "active".to_string(),
                 }
