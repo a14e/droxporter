@@ -121,6 +121,10 @@ fn last_point_for_metric(metrics: &MetricsResponse) -> f64 {
         .unwrap_or(0f64)
 }
 
+fn metrics_read_interval() -> Duration {
+    // It seems that DO has a 10..15 second interval between points, so I think an interval of 1 minute is reasonable.
+    Duration::minutes(1)
+}
 
 // a lot of boilerplate. but I don't think it would be changing too often
 #[async_trait]
@@ -144,7 +148,7 @@ impl DropletMetricsService for DropletMetricsServiceImpl {
             .collect();
 
         let interval_end = Utc::now();
-        let interval_start = interval_end - Duration::minutes(10);
+        let interval_start = interval_end - metrics_read_interval();
 
         let droplets = self.droplet_store.list_droplets();
         for droplet in droplets.iter() {
@@ -188,7 +192,7 @@ impl DropletMetricsService for DropletMetricsServiceImpl {
 
     async fn load_cpu_metrics(&self) -> anyhow::Result<()> {
         let interval_end = Utc::now();
-        let interval_start = interval_end - Duration::minutes(10);
+        let interval_start = interval_end - metrics_read_interval();
 
         for droplet in self.droplet_store.list_droplets().iter() {
             let res = self.client
@@ -231,7 +235,7 @@ impl DropletMetricsService for DropletMetricsServiceImpl {
             .collect();
 
         let interval_end = Utc::now();
-        let interval_start = interval_end - Duration::minutes(10);
+        let interval_start = interval_end - metrics_read_interval();
 
         for droplet in self.droplet_store.list_droplets().iter() {
             for metrics_type in &filesystem_types {

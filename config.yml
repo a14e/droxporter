@@ -46,7 +46,7 @@ metrics:
   bandwidth:
     types: [ private_inbound, private_outbound, public_inbound, public_outbound ]
     keys: [ "${AGENT_KEY3}" ]
-    interval: 20s
+    interval: 30s
     enabled: true
   cpu:
     keys: [ ]
@@ -55,18 +55,18 @@ metrics:
   filesystem:
     types: [ free ] #[ free, size ]
     keys: [ ]
-    interval: 12s
+    interval: 15s
     enabled: true
   memory:
     types: [ free ] # [ cached, free, total, available ]
     keys: [ ]
-    interval: 20s
+    interval: 30s
     enabled: true
   load:
     types: [ ]#[ load_1, load_5, load_15 ]
     keys: [ ]
     interval: 30s
-    enabled: true
+    enabled: false
 
 
 
