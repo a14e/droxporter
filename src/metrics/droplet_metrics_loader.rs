@@ -310,9 +310,9 @@ impl DropletMetricsService for DropletMetricsServiceImpl {
                 let value = extract_last_value(res);
 
                 let memory_type_str = match memory_type {
-                    MemoryRequest::CachedMemory => "free",
+                    MemoryRequest::CachedMemory => "cached",
                     MemoryRequest::FreeMemory => "available",
-                    MemoryRequest::TotalMemory => "cached",
+                    MemoryRequest::TotalMemory => "free",
                     MemoryRequest::AvailableTotalMemory => "total",
                 };
 

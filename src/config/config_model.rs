@@ -8,10 +8,15 @@ pub type Key = String;
 pub struct AppSettings {
     #[serde(default)]
     pub default_keys: Vec<Key>,
+    #[serde(default)]
     pub droplets: DropletSettings,
+    #[serde(default)]
     pub metrics: MetricsConfig,
+    #[serde(default)]
     pub agent_metrics: AgentMetricsConfigs,
+    #[serde(default)]
     pub endpoint: EndpointConfig,
+    #[serde(default)]
     pub custom: CustomSettings
 }
 
