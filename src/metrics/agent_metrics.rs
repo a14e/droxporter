@@ -41,11 +41,11 @@ impl AgentMetricsImpl {
 
 impl AgentMetricsService for AgentMetricsImpl {
     fn load_agent_metrics(&self) -> anyhow::Result<()> {
-        let cpu_metrics_enabled = self.config.agent_metrics.enabled && {
-            self.config.agent_metrics.metrics.contains(&AgentMetricsType::Cpu)
+        let cpu_metrics_enabled = self.config.exporter_metrics.enabled && {
+            self.config.exporter_metrics.metrics.contains(&AgentMetricsType::Cpu)
         };
-        let memory_metrics_enabled = self.config.agent_metrics.enabled && {
-            self.config.agent_metrics.metrics.contains(&AgentMetricsType::Memory)
+        let memory_metrics_enabled = self.config.exporter_metrics.enabled && {
+            self.config.exporter_metrics.metrics.contains(&AgentMetricsType::Memory)
         };
 
         let mut system = self.system.lock();

@@ -127,8 +127,8 @@ impl DigitalOceanClientMetrics {
     }
 
     fn is_enabled(&self) -> bool {
-        self.config.agent_metrics.enabled && {
-            self.config.agent_metrics.metrics.contains(&AgentMetricsType::Requests)
+        self.config.exporter_metrics.enabled && {
+            self.config.exporter_metrics.metrics.contains(&AgentMetricsType::Requests)
         }
     }
 

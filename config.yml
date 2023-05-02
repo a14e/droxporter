@@ -1,72 +1,86 @@
-endpoint:
-  port: 8888
-  host: "0.0.0.0"
-  auth:
-    enabled: false
-    login: "${AUTH_LOGIN:login}"
-    password: "${AUTH_PASSWORD:password}"
-  ssl:
-    enabled: false
-    root-cert-path: "${SSL_ROOT_CERT_PATH:./cert.pem}"
-    key-path: "${SSL_KEY_PATH:./key.pem}"
+endpoint: # default {}
+  port: 8888 # default 8888
+  host: "0.0.0.0" # default "0.0.0.0"
+  auth: # default {}
+    enabled: false # default false
+    login: "${AUTH_LOGIN:login}" # default login
+    password: "${AUTH_PASSWORD:password}" # default password
+  ssl: # default {}
+    enabled: false # default false
+    root-cert-path: "${SSL_ROOT_CERT_PATH:./cert.pem}"  # default ./cert.pem
+    key-path: "${SSL_KEY_PATH:./key.pem}" # default ./key.pem
 
 
+# Custom labels and prefix that can be added to all metrics
+custom: # default {}
+  prefix: "" # default ""
+  labels: # default {}
+  # app: droxporter
+  # system-type: agent
 
-custom:
-  prefix: ""
-  labels:
-   # app: droxporter
-   # system-type: agent
-
-
-agent-metrics:
-  enabled: true
-  interval: 5s
-  metrics:
+# Exporter metrics. The interval is used only for reading CPU and memory.
+# The metrics list is used to enable only the metrics we need.
+exporter-metrics: # default {}
+  enabled: true # default false
+  interval: 5s  # default 10s
+  metrics: # default []
     - cpu
     - memory
     - limits
     - requests
     - jobs
 
-default-keys: [ "${AGENT_KEY}", "${AGENT_KEY2}" ]
+# Default keys to be used
+default-keys: [ "${EXPORTER_KEY}" ] # default []
 
-droplets:
-  keys: [ ]
+# Droplet polling is always enabled, otherwise there is no point in enabling the exporter.
+# Specific keys can be used for polling.
+# URL is specified in case Digital Ocean makes changes, but metrics collection should continue.
+# Metrics from the metrics section are always included in the response and do not require additional requests,
+# so they will not affect the limits. However, if you want to disable them, you have the option.
+# 1-hour interval seems reasonable, as droplets rarely change.
+droplets: # default {}
+  keys: [ ] # default []
   url: "https://api.digitalocean.com/v2/droplets"
-  interval: 1h
-  metrics:
+  interval: 1h # default 1h
+  metrics: # default []
     - memory
     - vcpu
     - disk
     - status
 
-metrics:
+# List of metrics to be loaded
+# A separate request will be executed for each type within 'types' for each droplet, so be careful
+# not to add too many to avoid hitting request limits
+# The intervals are wide because:
+##  1. To avoid hitting limits
+##  2. Data on Digital Ocean updates infrequently
+metrics: # default {}
   base-url: "https://api.digitalocean.com/v2/monitoring/metrics/droplet"
-  bandwidth:
-    types: [ private_inbound, private_outbound, public_inbound, public_outbound ]
-    keys: [ "${AGENT_KEY3}" ]
-    interval: 30s
-    enabled: true
-  cpu:
-    keys: [ ]
-    interval: 15s
-    enabled: true
-  filesystem:
-    types: [ free ] #[ free, size ]
-    keys: [ ]
-    interval: 15s
-    enabled: true
-  memory:
-    types: [ free ] # [ cached, free, total, available ]
-    keys: [ ]
-    interval: 30s
-    enabled: true
-  load:
-    types: [ ]#[ load_1, load_5, load_15 ]
-    keys: [ ]
-    interval: 30s
-    enabled: false
+  bandwidth: # default {}
+    types: [ private_inbound, private_outbound, public_inbound, public_outbound ] # default []
+    keys: [ ] # default []
+    interval: 60s # default 60s
+    enabled: true # default false
+  cpu: # default {}
+    keys: [ ] # default []
+    interval: 45s # default 45s
+    enabled: true # default false
+  filesystem: # default {}
+    types: [ free ] # default [], full list: [ free, size ]
+    keys: [ ] # default []
+    interval: 120s # default 120s
+    enabled: true # default false
+  memory: # default {}
+    types: [ total, available ] # default [], full list: [ cached, free, total, available ]
+    keys: [ ] # default []
+    interval: 120s # default 120s
+    enabled: true # default false
+  load: # default {}
+    types: [ ] # default [], full list: [ load_1, load_5, load_15 ]
+    keys: [ ] # default []
+    interval: 120s # default 120s
+    enabled: false # default false
 
 
 

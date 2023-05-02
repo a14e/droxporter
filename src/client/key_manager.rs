@@ -213,8 +213,8 @@ impl KeyManagerState {
     }
 
     fn are_metrics_enabled(&self) -> bool {
-        self.configs.agent_metrics.enabled && {
-            self.configs.agent_metrics.metrics.contains(&AgentMetricsType::Limits)
+        self.configs.exporter_metrics.enabled && {
+            self.configs.exporter_metrics.metrics.contains(&AgentMetricsType::Limits)
         }
     }
 

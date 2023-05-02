@@ -63,8 +63,8 @@ impl MetricsSchedulerImpl {
 
 
     fn are_metrics_enabled(&self) -> bool {
-        self.configs.agent_metrics.enabled && {
-            self.configs.agent_metrics.metrics.contains(&AgentMetricsType::Jobs)
+        self.configs.exporter_metrics.enabled && {
+            self.configs.exporter_metrics.metrics.contains(&AgentMetricsType::Jobs)
         }
     }
 
@@ -267,17 +267,17 @@ impl MetricsScheduler for MetricsSchedulerImpl {
     }
 
     async fn run_agent_metrics_loading(&self) -> anyhow::Result<()> {
-        if !self.configs.agent_metrics.enabled {
+        if !self.configs.exporter_metrics.enabled {
             info!("Agent metrics are disabled");
             return Ok(());
         }
         info!("Staring load agent metrics loop");
         // timeout for initial load
         // looks ugly, but simple =)
-        let first_delay = Duration::from_secs(10).min(self.configs.agent_metrics.interval);
+        let first_delay = Duration::from_secs(10).min(self.configs.exporter_metrics.interval);
         let mut first = true;
         loop {
-            let timeout = if first { first_delay } else { self.configs.agent_metrics.interval };
+            let timeout = if first { first_delay } else { self.configs.exporter_metrics.interval };
             first = false;
             tokio::time::sleep(timeout).await;
 

@@ -13,7 +13,7 @@ pub struct AppSettings {
     #[serde(default)]
     pub metrics: MetricsConfig,
     #[serde(default)]
-    pub agent_metrics: AgentMetricsConfigs,
+    pub exporter_metrics: ExporterMetricsConfigs,
     #[serde(default)]
     pub endpoint: EndpointConfig,
     #[serde(default)]
@@ -60,7 +60,7 @@ pub struct AuthSettings {
 }
 
 fn default_login() -> String {
-    "droxporter".into()
+    "login".into()
 }
 
 fn default_password() -> String {
@@ -72,11 +72,20 @@ fn default_password() -> String {
 pub struct SslSettings {
     #[serde(default)]
     pub enabled: bool,
-    #[serde(default)]
+    #[serde(default = "default_ssl_cert")]
     pub root_cert_path: String,
-    #[serde(default)]
+    #[serde(default = "default_ssl_key")]
     pub key_path: String,
 }
+
+fn default_ssl_cert() -> String {
+    "./cert.pem".into()
+}
+
+fn default_ssl_key() -> String {
+    "./key.pem".into()
+}
+
 
 #[derive(Deserialize, Clone, Default)]
 #[serde(rename_all = "kebab-case")]
@@ -93,7 +102,7 @@ pub struct MetricsConfig {
 
 #[derive(Deserialize, Clone, Default)]
 #[serde(rename_all = "kebab-case")]
-pub struct AgentMetricsConfigs {
+pub struct ExporterMetricsConfigs {
     #[serde(default)]
     pub metrics: Vec<AgentMetricsType>,
     #[serde(default)]
@@ -124,7 +133,7 @@ pub struct DropletSettings {
     pub keys: Vec<Key>,
     #[serde(default = "default_droplets_url")]
     pub url: String,
-    #[serde(default = "duration_120_seconds")]
+    #[serde(default = "duration_1_hour")]
     #[serde(with = "humantime_serde")]
     pub interval: std::time::Duration,
     #[serde(default)]
@@ -146,11 +155,11 @@ pub enum DropletMetricsTypes {
 #[derive(Deserialize, Clone, Default)]
 #[serde(rename_all = "kebab-case")]
 pub struct BandwidthSettings {
-    #[serde(default = "default_bandwidth_types")]
+    #[serde(default)]
     pub types: Vec<BandwidthType>,
     #[serde(default)]
     pub keys: Vec<String>,
-    #[serde(default = "duration_10_seconds")]
+    #[serde(default = "duration_60_seconds")]
     #[serde(with = "humantime_serde")]
     pub interval: std::time::Duration,
     #[serde(default = "default_true")]
@@ -169,21 +178,12 @@ pub enum BandwidthType {
     PublicOutbound,
 }
 
-fn default_bandwidth_types() -> Vec<BandwidthType> {
-    vec![
-        BandwidthType::PrivateInbound,
-        BandwidthType::PrivateOutbound,
-        BandwidthType::PublicInbound,
-        BandwidthType::PublicOutbound,
-    ]
-}
-
 #[derive(Deserialize, Clone, Default)]
 #[serde(rename_all = "kebab-case")]
 pub struct CpuSettings {
     #[serde(default)]
     pub keys: Vec<String>,
-    #[serde(default = "duration_10_seconds")]
+    #[serde(default = "duration_45_seconds")]
     #[serde(with = "humantime_serde")]
     pub interval: std::time::Duration,
     #[serde(default = "default_true")]
@@ -219,7 +219,7 @@ pub struct MemorySettings {
     pub types: Vec<MemoryTypes>,
     #[serde(default)]
     pub keys: Vec<String>,
-    #[serde(default = "duration_10_seconds")]
+    #[serde(default = "duration_120_seconds")]
     #[serde(with = "humantime_serde")]
     pub interval: std::time::Duration,
     #[serde(default)]
@@ -245,7 +245,7 @@ pub struct LoadSettings {
     pub types: Vec<LoadTypes>,
     #[serde(default)]
     pub keys: Vec<String>,
-    #[serde(default = "duration_10_seconds")]
+    #[serde(default = "duration_120_seconds")]
     #[serde(with = "humantime_serde")]
     pub interval: std::time::Duration,
     #[serde(default)]
@@ -262,9 +262,16 @@ pub enum LoadTypes {
     Load15,
 }
 
+fn duration_1_hour() -> std::time::Duration {
+    std::time::Duration::from_secs(60 * 60)
+}
 
-fn duration_10_seconds() -> std::time::Duration {
-    std::time::Duration::from_secs(10)
+fn duration_60_seconds() -> std::time::Duration {
+    std::time::Duration::from_secs(60)
+}
+
+fn duration_45_seconds() -> std::time::Duration {
+    std::time::Duration::from_secs(45)
 }
 
 fn duration_120_seconds() -> std::time::Duration {
