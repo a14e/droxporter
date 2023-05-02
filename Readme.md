@@ -4,12 +4,10 @@ Droxporter is a Prometheus exporter for DigitalOcean Droplets.
 It collects various metrics and exposes them in a format compatible with Prometheus.
 The main features of Droxporter include:
 
-* Lightweight and efficient, making it suitable for resource-constrained environments.Written entirely in Rust.
+* Lightweight and efficient. Written entirely in Rust.
 * Collecting Droplet-related metrics, such as CPU usage, memory usage, disk space, bandwidth, and more.
-* Configurable through a single YAML file, with the option to use default settings without any configuration.
 * Support for HTTPS, basic authentication, and custom settings.
-* Built-in rate limiting to respect DigitalOcean's API rate limits and avoid potential issues. Ideal for projects with a
-  limited number of API requests.
+* Built-in rate limiting to respect DigitalOcean's API rate limits and avoid potential issues. 
 * Ability to use multiple API keys for better flexibility and control over the rate limits.
 * Comes with pre-built Grafana dashboards for quick visualization of the collected metrics.
 

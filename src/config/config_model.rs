@@ -107,7 +107,7 @@ pub struct ExporterMetricsConfigs {
     pub metrics: Vec<AgentMetricsType>,
     #[serde(default)]
     pub enabled: bool,
-    #[serde(default = "duration_10_seconds")]
+    #[serde(default = "duration_5_seconds")]
     #[serde(with = "humantime_serde")]
     pub interval: std::time::Duration,
 }
@@ -264,6 +264,10 @@ pub enum LoadTypes {
 
 fn duration_1_hour() -> std::time::Duration {
     std::time::Duration::from_secs(60 * 60)
+}
+
+fn duration_5_seconds() -> std::time::Duration {
+    std::time::Duration::from_secs(60)
 }
 
 fn duration_60_seconds() -> std::time::Duration {

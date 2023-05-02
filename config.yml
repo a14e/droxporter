@@ -22,7 +22,7 @@ custom: # default {}
 # The metrics list is used to enable only the metrics we need.
 exporter-metrics: # default {}
   enabled: true # default false
-  interval: 5s  # default 10s
+  interval: 5s  # default 5s
   metrics: # default []
     - cpu
     - memory
