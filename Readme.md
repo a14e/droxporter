@@ -58,6 +58,8 @@ version: "3.7"
 services:
   droxporter:
     image: m0hct3r/droxporter:latest
+    ports:
+      - "8888:8888"
     environment:
       - EXPORTER_KEY=123
     restart: always
@@ -73,6 +75,8 @@ version: "3.7"
 services:
   droxporter:
     image: m0hct3r/droxporter:latest
+    ports:
+      - "8888:8888"
     volumes:
       - ./config.yml:/app/config.yml:ro
     environment:
