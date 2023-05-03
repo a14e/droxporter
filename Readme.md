@@ -179,6 +179,23 @@ the `Data Source` on all dashboards to your own.
 
 Not all metrics are used in the dashboards, only those that are used in my projects.
 
+
+# Build
+## Building a Docker Image
+Since the Dockerfile is a 2-stage build, creating your own Docker image is as simple as cloning the repository and 
+running the following command from the project root:
+```
+docker build -t my_image_name .
+```
+## Building a Binary File
+To build a binary file, first install [Rust](https://www.rust-lang.org/learn/get-started), clone the repository, 
+and then run
+```
+cargo build --release
+```
+The compiled file will be located in the target/release folder and named droxporter or droxporter.exe. 
+To run the binary, a `config.yml` file is required in the same directory where the file will be executed
+
 # Contribution
 
 Any contribution is welcome. Just write tests and submit merge requests
