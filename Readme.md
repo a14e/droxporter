@@ -65,7 +65,8 @@ services:
     restart: always
 ```
 
-Run with docker-compose up.
+Run with `docker-compose up`.
+After launching, you can view the metrics at http://localhost:8888/metrics
 
 If you have local configurations, overlay them as follows:
 
