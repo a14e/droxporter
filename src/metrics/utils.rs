@@ -5,19 +5,18 @@ pub fn remove_old_droplets(gauge: &prometheus::GaugeVec,
                            valid_droplets: &HashSet<&str>) {
     let labels_to_delete = gauge.collect()
         .into_iter()
+        .flat_map(|m| m.get_metric())
         .filter(|m| {
-            m.get_metric()
+            m.get_label()
                 .iter()
-                .flat_map(|x| x.get_label().iter())
                 .find(|label| label.get_name() == "droplet")
                 .iter()
                 .all(|label| !valid_droplets.contains(label.get_value()))
         });
 
     for m in labels_to_delete {
-        let labels: std::collections::HashMap<_, _> = m.get_metric()
+        let labels: std::collections::HashMap<_, _> = m.get_label()
             .iter()
-            .flat_map(|x| x.get_label())
             .map(|l| (l.get_name(), l.get_value()))
             .collect();
 
