@@ -3,9 +3,9 @@ use prometheus::core::Collector;
 
 pub fn remove_old_droplets(gauge: &prometheus::GaugeVec,
                            valid_droplets: &HashSet<&str>) {
-    let labels_to_delete = gauge.collect()
-        .into_iter()
-        .flat_map(|m| m.get_metric())
+    let labels_to_delete: Vec<_> = gauge.collect()
+        .iter()
+        .flat_map(|m| m.get_metric().to_vec())
         .filter(|m| {
             m.get_label()
                 .iter()
