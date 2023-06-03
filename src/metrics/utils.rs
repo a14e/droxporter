@@ -12,7 +12,7 @@ pub fn remove_old_droplets(gauge: &prometheus::GaugeVec,
                 .find(|label| label.get_name() == "droplet")
                 .iter()
                 .all(|label| !valid_droplets.contains(label.get_value()))
-        });
+        }).collect();
 
     for m in labels_to_delete {
         let labels: std::collections::HashMap<_, _> = m.get_label()
