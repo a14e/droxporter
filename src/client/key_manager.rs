@@ -67,6 +67,7 @@ type Key = String;
 pub enum KeyType {
     Default,
     Droplets,
+    Apps,
     Bandwidth,
     Cpu,
     FileSystem,
@@ -78,6 +79,7 @@ impl KeyType {
     fn to_metric_type(&self) -> &'static str {
         match self {
             KeyType::Default => "default",
+            KeyType::Apps => "apps",
             KeyType::Droplets => "droplets",
             KeyType::Bandwidth => "bandwidth",
             KeyType::Cpu => "cpu",
@@ -95,31 +97,32 @@ impl KeyManagerState {
 
         keys.insert(KeyType::Default, configs.default_keys.clone());
         keys.insert(KeyType::Droplets, configs.droplets.keys.clone());
-        if let Some(bandwidth) = configs.metrics.bandwidth.as_ref() {
+        keys.insert(KeyType::Apps, configs.apps.keys.clone());
+        if let Some(bandwidth) = configs.droplet_metrics.bandwidth.as_ref() {
             keys.insert(
                 KeyType::Bandwidth,
                 bandwidth.keys.clone(),
             );
         }
-        if let Some(cpu) = configs.metrics.cpu.as_ref() {
+        if let Some(cpu) = configs.droplet_metrics.cpu.as_ref() {
             keys.insert(
                 KeyType::Cpu,
                 cpu.keys.clone(),
             );
         }
-        if let Some(filesystem) = configs.metrics.filesystem.as_ref() {
+        if let Some(filesystem) = configs.droplet_metrics.filesystem.as_ref() {
             keys.insert(
                 KeyType::FileSystem,
                 filesystem.keys.clone(),
             );
         }
-        if let Some(memory) = configs.metrics.memory.as_ref() {
+        if let Some(memory) = configs.droplet_metrics.memory.as_ref() {
             keys.insert(
                 KeyType::Memory,
                 memory.keys.clone(),
             );
         }
-        if let Some(load) = configs.metrics.load.as_ref() {
+        if let Some(load) = configs.droplet_metrics.load.as_ref() {
             keys.insert(
                 KeyType::Load,
                 load.keys.clone(),
@@ -297,19 +300,19 @@ mod key_manager {
     fn acquire_key() {
         // I don't like this stuff, but for tests, it seems to be okay.
         let mut configs: &'static mut _ = Box::leak(Box::new(AppSettings::default()));
-        configs.metrics.memory = Some(Default::default());
-        configs.metrics.cpu = Some(Default::default());
-        configs.metrics.load = Some(Default::default());
-        configs.metrics.filesystem = Some(Default::default());
-        configs.metrics.bandwidth = Some(Default::default());
+        configs.droplet_metrics.memory = Some(Default::default());
+        configs.droplet_metrics.cpu = Some(Default::default());
+        configs.droplet_metrics.load = Some(Default::default());
+        configs.droplet_metrics.filesystem = Some(Default::default());
+        configs.droplet_metrics.bandwidth = Some(Default::default());
 
         configs.default_keys = vec!["default".into()];
 
-        configs.metrics.memory.as_mut().unwrap().keys = vec!["memory".into()];
-        configs.metrics.cpu.as_mut().unwrap().keys = vec!["cpu".into()];
-        configs.metrics.load.as_mut().unwrap().keys = vec!["load".into()];
-        configs.metrics.filesystem.as_mut().unwrap().keys = vec!["filesystem".into()];
-        configs.metrics.bandwidth.as_mut().unwrap().keys = vec!["bandwidth".into()];
+        configs.droplet_metrics.memory.as_mut().unwrap().keys = vec!["memory".into()];
+        configs.droplet_metrics.cpu.as_mut().unwrap().keys = vec!["cpu".into()];
+        configs.droplet_metrics.load.as_mut().unwrap().keys = vec!["load".into()];
+        configs.droplet_metrics.filesystem.as_mut().unwrap().keys = vec!["filesystem".into()];
+        configs.droplet_metrics.bandwidth.as_mut().unwrap().keys = vec!["bandwidth".into()];
         configs.droplets.keys = vec!["droplets".into()];
 
         let manager = KeyManagerImpl::new(configs, Registry::new()).unwrap();
@@ -333,10 +336,10 @@ mod key_manager {
     #[test]
     fn fallback_to_second_key_on_limits() {
         let mut configs = Box::leak(Box::new(AppSettings::default()));
-        configs.metrics.memory = Some(Default::default());
+        configs.droplet_metrics.memory = Some(Default::default());
         configs.default_keys = vec!["default".into()];
 
-        configs.metrics.memory.as_mut().unwrap().keys = vec!["memory".into()];
+        configs.droplet_metrics.memory.as_mut().unwrap().keys = vec!["memory".into()];
 
         let manager = KeyManagerImpl::new(configs, Registry::new()).unwrap();
 
@@ -351,7 +354,7 @@ mod key_manager {
     #[test]
     fn fallback_to_default_if_not_found() {
         let mut configs = Box::leak(Box::new(AppSettings::default()));
-        configs.metrics.memory = Some(Default::default());
+        configs.droplet_metrics.memory = Some(Default::default());
         configs.default_keys = vec!["default".into()];
 
         let manager = KeyManagerImpl::new(configs, Registry::new()).unwrap();

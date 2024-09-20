@@ -130,7 +130,7 @@ fn metrics_read_interval() -> Duration {
 #[async_trait]
 impl DropletMetricsService for DropletMetricsServiceImpl {
     async fn load_bandwidth(&self) -> anyhow::Result<()> {
-        let bandwidth = unwrap_or_return_ok!(self.configs.metrics.bandwidth.as_ref());
+        let bandwidth = unwrap_or_return_ok!(self.configs.droplet_metrics.bandwidth.as_ref());
 
         let enable_private_in = bandwidth.types.contains(&BandwidthType::PrivateInbound);
         let enable_private_out = bandwidth.types.contains(&BandwidthType::PrivateOutbound);
@@ -222,7 +222,7 @@ impl DropletMetricsService for DropletMetricsServiceImpl {
     }
 
     async fn load_filesystem_metrics(&self) -> anyhow::Result<()> {
-        let filesystem = unwrap_or_return_ok!(self.configs.metrics.filesystem.as_ref());
+        let filesystem = unwrap_or_return_ok!(self.configs.droplet_metrics.filesystem.as_ref());
 
         let enable_free = filesystem.types.contains(&FilesystemTypes::Free);
         let enable_size = filesystem.types.contains(&FilesystemTypes::Size);
@@ -279,7 +279,7 @@ impl DropletMetricsService for DropletMetricsServiceImpl {
     }
 
     async fn load_memory_metrics(&self) -> anyhow::Result<()> {
-        let memory = unwrap_or_return_ok!(self.configs.metrics.memory.as_ref());
+        let memory = unwrap_or_return_ok!(self.configs.droplet_metrics.memory.as_ref());
 
         let enable_free = memory.types.contains(&MemoryTypes::Free);
         let enable_available = memory.types.contains(&MemoryTypes::Available);
@@ -335,7 +335,7 @@ impl DropletMetricsService for DropletMetricsServiceImpl {
     }
 
     async fn load_load_metrics(&self) -> anyhow::Result<()> {
-        let load = unwrap_or_return_ok!(self.configs.metrics.load.as_ref());
+        let load = unwrap_or_return_ok!(self.configs.droplet_metrics.load.as_ref());
 
         let enable_load1 = load.types.contains(&LoadTypes::Load1);
         let enable_load5 = load.types.contains(&LoadTypes::Load5);

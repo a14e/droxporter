@@ -11,7 +11,9 @@ pub struct AppSettings {
     #[serde(default)]
     pub droplets: DropletSettings,
     #[serde(default)]
-    pub metrics: MetricsConfig,
+    pub apps: AppPlatformSettings,
+    #[serde(default)]
+    pub droplet_metrics: MetricsConfig,
     #[serde(default)]
     pub exporter_metrics: ExporterMetricsConfigs,
     #[serde(default)]
@@ -132,6 +134,20 @@ pub struct DropletSettings {
     #[serde(default)]
     pub keys: Vec<Key>,
     #[serde(default = "default_droplets_url")]
+    pub url: String,
+    #[serde(default = "duration_1_hour")]
+    #[serde(with = "humantime_serde")]
+    pub interval: std::time::Duration,
+    #[serde(default)]
+    pub metrics: Vec<DropletMetricsTypes>,
+}
+
+#[derive(Deserialize, Clone, Default)]
+#[serde(rename_all = "kebab-case")]
+pub struct AppPlatformSettings {
+    #[serde(default)]
+    pub keys: Vec<Key>,
+    #[serde(default = "default_apps_url")]
     pub url: String,
     #[serde(default = "duration_1_hour")]
     #[serde(with = "humantime_serde")]
@@ -288,6 +304,10 @@ fn default_base_url() -> String {
 
 fn default_droplets_url() -> String {
     "https://api.digitalocean.com/v2/droplets".into()
+}
+
+fn default_apps_url() -> String {
+    "https://api.digitalocean.com/v2/apps".into()
 }
 
 fn default_true() -> bool {

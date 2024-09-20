@@ -5,7 +5,7 @@ use chrono::Utc;
 use prometheus::{HistogramOpts, Opts, Registry};
 use reqwest::StatusCode;
 use url::Url;
-use crate::client::do_json_protocol::{DataResponse, ListDropletsResponse};
+use crate::client::do_json_protocol::{DataResponse, ListDropletsResponse, ListAppsResponse};
 use crate::client::key_manager::{KeyManager, KeyType};
 use crate::config::config_model::{AgentMetricsType, AppSettings};
 use crate::metrics::utils::DROXPORTER_DEFAULT_BUCKETS;
@@ -15,6 +15,11 @@ pub trait DigitalOceanClient: Send + Sync {
     async fn list_droplets(&self,
                            per_page: u64,
                            page: u64) -> anyhow::Result<ListDropletsResponse>;
+
+
+    async fn list_apps(&self,
+                       per_page: u64,
+                       page: u64) -> anyhow::Result<ListAppsResponse>;
 
 
     async fn get_bandwidth(&self,
@@ -160,7 +165,7 @@ impl DigitalOceanClientImpl {
                                   end: chrono::DateTime<Utc>) -> anyhow::Result<DataResponse> {
         let suffix = request_type.to_request_suffix()?;
         let mut url = {
-            let base = self.config.metrics.base_url.as_str();
+            let base = self.config.droplet_metrics.base_url.as_str();
             let str = format!("{base}/{suffix}"); // or path_segments_mut?
             Url::parse(str.as_str())?
         };
@@ -200,6 +205,7 @@ impl DigitalOceanClientImpl {
 #[derive(PartialEq, Eq, Hash, Copy, Clone)]
 pub enum RequestType {
     Droplets,
+    Apps,
     Bandwidth,
     Cpu,
     FileSystemFree,
@@ -251,6 +257,7 @@ impl Into<KeyType> for RequestType {
     fn into(self) -> KeyType {
         match self {
             RequestType::Droplets => KeyType::Droplets,
+            RequestType::Apps => KeyType::Apps,
             RequestType::Bandwidth => KeyType::Bandwidth,
             RequestType::Cpu => KeyType::Cpu,
             RequestType::FileSystemFree => KeyType::FileSystem,
@@ -300,6 +307,39 @@ impl DigitalOceanClient for DigitalOceanClientImpl {
         Ok(res)
     }
 
+    async fn list_apps(&self,
+                           per_page: u64,
+                           page: u64) -> anyhow::Result<ListAppsResponse> {
+        let mut url = Url::parse(self.config.apps.url.as_str())?;
+        url.query_pairs_mut()
+            .append_pair("per_page", per_page.to_string().as_str())
+            .append_pair("page", page.to_string().as_str());
+
+        let bearer = self.token_manager.acquire_key(RequestType::Apps.into())?;
+        let time = Instant::now();
+
+        println!("URL: {}", url);
+        let response = self.client
+            .get(url)
+            .bearer_auth(bearer)
+            .send()
+            .await?;
+        self.metrics.record_client_metrics("list_apps", response.status().as_str(), time);
+
+        if response.status() != StatusCode::OK && response.status() != StatusCode::NO_CONTENT {
+            let status = response.status();
+            let body = response.text().await?;
+            let err = format!("Request failed with status code: {status}, body: {body}");
+            return Err(anyhow::Error::msg(err));
+        }
+
+        let res = response.json::<ListAppsResponse>()
+            .await?;
+
+
+        Ok(res)
+    }
+
     async fn get_bandwidth(&self,
                            host_id: u64,
                            interface: NetworkInterface,
@@ -307,7 +347,7 @@ impl DigitalOceanClient for DigitalOceanClientImpl {
                            start: chrono::DateTime<Utc>,
                            end: chrono::DateTime<Utc>) -> anyhow::Result<DataResponse> {
         let mut url = {
-            let base = self.config.metrics.base_url.as_str();
+            let base = self.config.droplet_metrics.base_url.as_str();
             let str = format!("{base}/bandwidth"); // or path_segments_mut?
             Url::parse(str.as_str())?
         };

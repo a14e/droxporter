@@ -6,6 +6,7 @@ use tokio::time::Instant;
 use tracing::{error, info};
 use crate::config::config_model::{AgentMetricsType, AppSettings};
 use crate::metrics::agent_metrics::AgentMetricsService;
+use crate::metrics::app_store::AppStore;
 use crate::metrics::droplet_metrics_loader::DropletMetricsService;
 use crate::metrics::droplet_store::DropletStore;
 use crate::metrics::utils::DROXPORTER_DEFAULT_BUCKETS;
@@ -13,6 +14,7 @@ use crate::metrics::utils::DROXPORTER_DEFAULT_BUCKETS;
 #[async_trait]
 pub trait MetricsScheduler: Send + Sync {
     async fn run_droplets_loading(&self) -> anyhow::Result<()>;
+    async fn run_apps_loading(&self) -> anyhow::Result<()>;
     async fn run_bandwidth_metrics_loading(&self) -> anyhow::Result<()>;
     async fn run_cpu_metrics_loading(&self) -> anyhow::Result<()>;
     async fn run_filesystem_metrics_loading(&self) -> anyhow::Result<()>;
@@ -24,6 +26,7 @@ pub trait MetricsScheduler: Send + Sync {
 pub struct MetricsSchedulerImpl {
     configs: &'static AppSettings,
     droplet_store: Arc<dyn DropletStore>,
+    app_store: Arc<dyn AppStore>,
     metrics_service: Arc<dyn DropletMetricsService>,
     agent_service: Arc<dyn AgentMetricsService>,
 
@@ -35,6 +38,7 @@ pub struct MetricsSchedulerImpl {
 impl MetricsSchedulerImpl {
     pub fn new(configs: &'static AppSettings,
                droplet_store: Arc<dyn DropletStore>,
+               app_store: Arc<dyn AppStore>,
                metrics_service: Arc<dyn DropletMetricsService>,
                agent_service: Arc<dyn AgentMetricsService>,
                registry: Registry) -> anyhow::Result<Self> {
@@ -53,6 +57,7 @@ impl MetricsSchedulerImpl {
         let result = Self {
             configs,
             droplet_store,
+            app_store,
             metrics_service,
             agent_service,
             jobs_counter,
@@ -119,8 +124,31 @@ impl MetricsScheduler for MetricsSchedulerImpl {
         }
     }
 
+    async fn run_apps_loading(&self) -> anyhow::Result<()> {
+        info!("Starting apps loading loop");
+
+
+        let mut first = true;
+        loop {
+            if !first {
+                tokio::time::sleep(self.configs.apps.interval).await;
+            }
+            first = false;
+            let start = Instant::now();
+
+            if let Err(e) = self.app_store.load_apps().await {
+                error!("App loading failed with err {e}");
+                self.record_job_metrics("app_loading", false, start);
+                continue;
+            }
+            self.app_store.record_app_metrics();
+
+            self.record_job_metrics("app_loading", true, start)
+        }
+    }
+
     async fn run_bandwidth_metrics_loading(&self) -> anyhow::Result<()> {
-        if let Some(bandwidth) = self.configs.metrics.bandwidth.as_ref() {
+        if let Some(bandwidth) = self.configs.droplet_metrics.bandwidth.as_ref() {
             if !bandwidth.enabled {
                 info!("Bandwidth metrics are disabled");
                 return Ok(());
@@ -149,7 +177,7 @@ impl MetricsScheduler for MetricsSchedulerImpl {
     }
 
     async fn run_cpu_metrics_loading(&self) -> anyhow::Result<()> {
-        if let Some(cpu) = self.configs.metrics.cpu.as_ref() {
+        if let Some(cpu) = self.configs.droplet_metrics.cpu.as_ref() {
             if !cpu.enabled {
                 info!("Cpu metrics are disabled");
                 return Ok(());
@@ -178,7 +206,7 @@ impl MetricsScheduler for MetricsSchedulerImpl {
     }
 
     async fn run_filesystem_metrics_loading(&self) -> anyhow::Result<()> {
-        if let Some(filesystem) = self.configs.metrics.filesystem.as_ref() {
+        if let Some(filesystem) = self.configs.droplet_metrics.filesystem.as_ref() {
             if !filesystem.enabled {
                 info!("Filesystem metrics are disabled");
                 return Ok(());
@@ -207,7 +235,7 @@ impl MetricsScheduler for MetricsSchedulerImpl {
     }
 
     async fn run_memory_metrics_loading(&self) -> anyhow::Result<()> {
-        if let Some(memory) = self.configs.metrics.memory.as_ref() {
+        if let Some(memory) = self.configs.droplet_metrics.memory.as_ref() {
             if !memory.enabled {
                 info!("Memory metrics are disabled");
                 return Ok(());
@@ -236,7 +264,7 @@ impl MetricsScheduler for MetricsSchedulerImpl {
     }
 
     async fn run_load_metrics_loading(&self) -> anyhow::Result<()> {
-        if let Some(load) = self.configs.metrics.load.as_ref() {
+        if let Some(load) = self.configs.droplet_metrics.load.as_ref() {
             if !load.enabled {
                 info!("Load metrics are disabled");
                 return Ok(());

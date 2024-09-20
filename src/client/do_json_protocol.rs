@@ -21,6 +21,24 @@ pub struct DropletResponse {
 
 
 #[derive(Deserialize, PartialEq, Debug)]
+pub struct ListAppsResponse {
+    #[serde(default)]
+    pub apps: Vec<AppResponse>,
+}
+
+#[derive(Deserialize, PartialEq, Debug)]
+pub struct AppResponse {
+    pub id: String,
+    pub spec: AppSpec,
+}
+
+#[derive(Deserialize, PartialEq, Debug)]
+pub struct AppSpec {
+    pub name: String,
+}
+
+
+#[derive(Deserialize, PartialEq, Debug)]
 pub struct DataResponse {
     pub status: String,
     pub data: DataResult,
@@ -98,7 +116,7 @@ fn deserialize_points<'de, D>(deserializer: D) -> Result<Vec<MetricPoint>, D::Er
 
 #[cfg(test)]
 mod deserialize_test {
-    use crate::client::do_json_protocol::{DataResponse, DataResult, DropletResponse, ListDropletsResponse, MetricMetaInfo, MetricPoint, MetricsResponse};
+    use crate::client::do_json_protocol::{AppResponse, AppSpec, DataResponse, DataResult, DropletResponse, ListAppsResponse, ListDropletsResponse, MetricMetaInfo, MetricPoint, MetricsResponse};
 
     #[test]
     fn deserialize_droplets() {
@@ -116,6 +134,36 @@ mod deserialize_test {
                     status: "active".to_string(),
                 }
             ]
+        };
+
+        assert_eq!(deserialized_data, expected_result)
+    }
+
+    #[test]
+    fn deserialize_apps() {
+        let json_data = r#"{"meta":{"total":11},"links":{"pages":{"last":"https://api.digitalocean.com/v2/apps?page=11&per_page=1","next":"https://api.digitalocean.com/v2/apps?page=2&per_page=1"}},"apps":[{"id":"3a8aa5b2-3d92-4d0d-9d38-3214f08f3a57","owner_uuid":"13a391ec-d5fb-477e-a5b6-c62369d38c15","spec":{"name":"AppName","services":[{"name":"web","image":{"registry_type":"DOCR","repository":"RepoName","tag":"web","deploy_on_push":{}},"instance_size_slug":"apps-s-1vcpu-1gb-fixed","instance_count":1,"http_port":8080}],"domains":[{"domain":"api.example.com","type":"PRIMARY"}],"region":"fra","alerts":[{"rule":"DEPLOYMENT_FAILED"},{"rule":"DOMAIN_FAILED"}],"ingress":{"rules":[{"match":{"path":{"prefix":"/"}},"component":{"name":"web"}}]},"features":["buildpack-stack=ubuntu-22"]},"last_deployment_active_at":"2024-08-30T13:58:33Z","default_ingress":"https://AppName.ondigitalocean.app","created_at":"2024-07-08T14:51:42Z","updated_at":"2024-09-19T13:36:02Z","active_deployment":{"id":"c079d423-e050-4a22-97cd-e9fbbbf020ad","spec":{"name":"AppName","services":[{"name":"web","image":{"registry_type":"DOCR","repository":"RepoName","tag":"web","deploy_on_push":{}},"instance_size_slug":"apps-s-1vcpu-1gb-fixed","instance_count":1,"http_port":8080}],"domains":[{"domain":"api.example.com","type":"PRIMARY"}],"region":"fra","alerts":[{"rule":"DEPLOYMENT_FAILED"},{"rule":"DOMAIN_FAILED"}],"ingress":{"rules":[{"match":{"path":{"prefix":"/"}},"component":{"name":"web"}}]},"features":["buildpack-stack=ubuntu-22"]},"services":[{"name":"web","source_image_digest":"sha256:c24c1c13e86d92ecb496c8050174af95fd5df76dbb866e34729055bd3a13bbb8"}],"phase_last_updated_at":"2024-08-30T13:58:33Z","created_at":"2024-08-30T13:57:54Z","updated_at":"2024-09-13T13:58:37Z","cause":"manual","progress":{"success_steps":6,"total_steps":6,"steps":[{"name":"build","status":"SUCCESS","steps":[{"name":"initialize","status":"SUCCESS","started_at":"2024-08-30T13:57:57.672434261Z","ended_at":"2024-08-30T13:57:57.759162219Z"},{"name":"components","status":"SUCCESS","steps":[{"name":"web","status":"SUCCESS","reason":{"code":"PreBuiltImage","message":"Your build job was skipped because you specified a pre-built image."},"component_name":"web","message_base":"Building service"}],"started_at":"2024-08-30T13:57:57.759197958Z","ended_at":"2024-08-30T13:57:57.759737867Z"}],"started_at":"2024-08-30T13:57:57.672359656Z","ended_at":"2024-08-30T13:57:57.759966408Z"},{"name":"deploy","status":"SUCCESS","steps":[{"name":"initialize","status":"SUCCESS","started_at":"2024-08-30T13:57:59.735041686Z","ended_at":"2024-08-30T13:58:00.763926223Z"},{"name":"components","status":"SUCCESS","steps":[{"name":"web","status":"SUCCESS","steps":[{"name":"deploy","status":"SUCCESS","component_name":"web","message_base":"Deploying service"},{"name":"wait","status":"SUCCESS","component_name":"web","message_base":"Waiting for service"}],"component_name":"web"}],"started_at":"2024-08-30T13:58:00.763948038Z","ended_at":"2024-08-30T13:58:31.844593165Z"},{"name":"finalize","status":"SUCCESS","started_at":"2024-08-30T13:58:32.364561249Z","ended_at":"2024-08-30T13:58:33.190573345Z"}],"started_at":"2024-08-30T13:57:59.735022449Z","ended_at":"2024-08-30T13:58:33.190642962Z"}]},"phase":"ACTIVE","tier_slug":"basic","previous_deployment_id":"923b6d07-70a1-45b5-9e46-f1ed0687764c","cause_details":{"digitalocean_user_action":{"user":{"uuid":"22b08b29-899a-458d-a788-d9c128165574","email":"admin@example.com","full_name":"AdminUser"},"name":"CREATE_DEPLOYMENT"},"type":"MANUAL"},"timing":{"pending":"3.672434261s","build_total":"0.087532147s","build_billable":"0s"}},"last_deployment_created_at":"2024-08-30T13:57:54Z","live_url":"https://api.example.com","region":{"slug":"fra","label":"Frankfurt","flag":"germany","continent":"Europe","data_centers":["fra1"]},"tier_slug":"basic","live_url_base":"https://api.example.com","live_domain":"api.example.com","domains":[{"id":"dd6c8d8e-2943-4526-95ce-686e0cd28b1a","spec":{"domain":"api.example.com","type":"PRIMARY"},"phase":"ACTIVE","progress":{"steps":[{"name":"default-ingress-ready","status":"SUCCESS","started_at":"2024-09-19T13:35:59.634545234Z"},{"name":"ensure-zone","status":"SUCCESS","started_at":"2024-09-19T13:35:59.634633033Z","ended_at":"2024-07-08T15:29:34.369563407Z"},{"name":"ensure-ns-records","status":"SUCCESS","started_at":"2024-09-19T13:35:59.634703204Z","ended_at":"2024-07-08T15:29:34.369629876Z"},{"name":"verify-nameservers","status":"SUCCESS","started_at":"2024-09-19T13:35:59.634817566Z","ended_at":"2024-07-08T15:29:34.369693003Z"},{"name":"ensure-record","status":"SUCCESS","started_at":"2024-09-19T13:35:59.634912842Z","ended_at":"2024-07-08T15:29:34.369758476Z"},{"name":"ensure-alias-record","status":"SUCCESS","started_at":"2024-09-19T13:35:59.634982353Z","ended_at":"2024-07-08T15:29:34.369836232Z"},{"name":"ensure-wildcard-record","status":"SUCCESS","started_at":"2024-09-19T13:35:59.635050384Z","ended_at":"2024-07-08T15:29:34.369917605Z"},{"name":"verify-cname","status":"SUCCESS","started_at":"2024-09-19T13:35:59.717673396Z"},{"name":"ensure-ssl-txt-record-saved","status":"SUCCESS","started_at":"2024-09-19T13:36:00.049765662Z","ended_at":"2024-07-08T15:29:34.699300167Z"},{"name":"ensure-ssl-txt-record","status":"SUCCESS","started_at":"2024-09-19T13:36:00.049962156Z","ended_at":"2024-07-08T15:29:34.699370946Z"},{"name":"ensure-renewal-email","status":"SUCCESS","started_at":"2024-09-19T13:36:00.050064902Z","ended_at":"2024-07-08T15:29:34.699419605Z"},{"name":"ensure-CA-authorization","status":"SUCCESS","started_at":"2024-09-19T13:36:00.050148486Z"},{"name":"ensure-certificate","status":"SUCCESS","started_at":"2024-09-19T13:36:00.196127105Z"},{"name":"create-deployment","status":"SUCCESS","ended_at":"2024-07-08T15:31:26.846132585Z"},{"name":"configuration-alert","status":"SUCCESS","started_at":"2024-09-19T13:36:00.595405647Z","ended_at":"2024-07-08T15:29:35.389412129Z"}]},"validation":{},"certificate_expires_at":"2024-12-04T13:48:56Z"}],"build_config":{}}]}
+"#;
+        let deserialized_data: ListAppsResponse = serde_json::from_str(json_data).unwrap();
+        let expected_result = ListAppsResponse {
+            apps: vec![
+                AppResponse {
+                    id: "3a8aa5b2-3d92-4d0d-9d38-3214f08f3a57".to_string(),
+                    spec: AppSpec {
+                        name: "AppName".to_string(),
+                    },
+                }
+            ]
+        };
+
+        assert_eq!(deserialized_data, expected_result)
+    }
+
+    #[test]
+    fn deserialize_apps_empty_response() {
+        let json_data = r#"{"meta":{"total":11},"links":{"pages":{"first":"https://api.digitalocean.com/v2/apps?page=1\u0026per_page=100","prev":"https://api.digitalocean.com/v2/apps?page=1\u0026per_page=100"}}}"#;
+        let deserialized_data: ListAppsResponse = serde_json::from_str(json_data).unwrap();
+        let expected_result = ListAppsResponse {
+            apps: vec![]
         };
 
         assert_eq!(deserialized_data, expected_result)

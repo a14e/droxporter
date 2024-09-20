@@ -23,6 +23,7 @@ use crate::config::config_model::{AppSettings, SslSettings};
 use crate::metrics::agent_metrics::AgentMetricsImpl;
 use crate::metrics::droplet_metrics_loader::DropletMetricsServiceImpl;
 use crate::metrics::droplet_store::DropletStoreImpl;
+use crate::metrics::app_store::AppStoreImpl;
 use crate::metrics::jobs_scheduler::{MetricsScheduler, MetricsSchedulerImpl};
 
 // because it breaks debugger =(
@@ -85,6 +86,10 @@ async fn main() -> anyhow::Result<()> {
     tokio::spawn({
         let scheduler = scheduler.clone();
         async move { scheduler.run_droplets_loading().await }
+    });
+    tokio::spawn({
+        let scheduler = scheduler.clone();
+        async move { scheduler.run_apps_loading().await }
     });
     tokio::spawn({
         let scheduler = scheduler.clone();
@@ -162,10 +167,16 @@ fn build_app(registry: Registry,
         configs,
         registry.clone(),
     )?;
+    let app_store = AppStoreImpl::new(
+        Arc::new(client.clone()),
+        configs,
+        registry.clone(),
+    )?;
 
     let scheduler: MetricsSchedulerImpl = MetricsSchedulerImpl::new(
         configs,
         Arc::new(droplets_store.clone()),
+        Arc::new(app_store.clone()),
         Arc::new(droplets_metrics_loader),
         Arc::new(agent_metrics),
         registry.clone(),
