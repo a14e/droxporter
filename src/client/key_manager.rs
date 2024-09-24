@@ -68,11 +68,14 @@ pub enum KeyType {
     Default,
     Droplets,
     Apps,
-    Bandwidth,
-    Cpu,
-    FileSystem,
-    Memory,
-    Load,
+    DropletBandwidth,
+    DropletCpu,
+    DropletFileSystem,
+    DropletMemory,
+    DropletLoad,
+    AppCpuPercentage,
+    AppMemoryPercentage,
+    AppRestartCount,
 }
 
 impl KeyType {
@@ -81,11 +84,14 @@ impl KeyType {
             KeyType::Default => "default",
             KeyType::Apps => "apps",
             KeyType::Droplets => "droplets",
-            KeyType::Bandwidth => "bandwidth",
-            KeyType::Cpu => "cpu",
-            KeyType::FileSystem => "file_system",
-            KeyType::Memory => "memory",
-            KeyType::Load => "load",
+            KeyType::DropletBandwidth => "bandwidth",
+            KeyType::DropletCpu => "cpu",
+            KeyType::DropletFileSystem => "file_system",
+            KeyType::DropletMemory => "memory",
+            KeyType::DropletLoad => "load",
+            KeyType::AppCpuPercentage => "app_cpu_percentage",
+            KeyType::AppMemoryPercentage => "app_memory_percentage",
+            KeyType::AppRestartCount => "app_restart_count",
         }
     }
 }
@@ -100,32 +106,50 @@ impl KeyManagerState {
         keys.insert(KeyType::Apps, configs.apps.keys.clone());
         if let Some(bandwidth) = configs.droplet_metrics.bandwidth.as_ref() {
             keys.insert(
-                KeyType::Bandwidth,
+                KeyType::DropletBandwidth,
                 bandwidth.keys.clone(),
             );
         }
         if let Some(cpu) = configs.droplet_metrics.cpu.as_ref() {
             keys.insert(
-                KeyType::Cpu,
+                KeyType::DropletCpu,
                 cpu.keys.clone(),
             );
         }
         if let Some(filesystem) = configs.droplet_metrics.filesystem.as_ref() {
             keys.insert(
-                KeyType::FileSystem,
+                KeyType::DropletFileSystem,
                 filesystem.keys.clone(),
             );
         }
         if let Some(memory) = configs.droplet_metrics.memory.as_ref() {
             keys.insert(
-                KeyType::Memory,
+                KeyType::DropletMemory,
                 memory.keys.clone(),
             );
         }
         if let Some(load) = configs.droplet_metrics.load.as_ref() {
             keys.insert(
-                KeyType::Load,
+                KeyType::DropletLoad,
                 load.keys.clone(),
+            );
+        }
+        if let Some(app_cpu_percentage) = configs.app_metrics.cpu_percentage.as_ref() {
+            keys.insert(
+                KeyType::AppCpuPercentage,
+                app_cpu_percentage.keys.clone(),
+            );
+        }
+        if let Some(app_memory_percentage) = configs.app_metrics.memory_percentage.as_ref() {
+            keys.insert(
+                KeyType::AppMemoryPercentage,
+                app_memory_percentage.keys.clone(),
+            );
+        }
+        if let Some(app_restart_count) = configs.app_metrics.restart_count.as_ref() {
+            keys.insert(
+                KeyType::AppRestartCount,
+                app_restart_count.keys.clone(),
             );
         }
 
@@ -306,6 +330,10 @@ mod key_manager {
         configs.droplet_metrics.filesystem = Some(Default::default());
         configs.droplet_metrics.bandwidth = Some(Default::default());
 
+        configs.app_metrics.cpu_percentage = Some(Default::default());
+        configs.app_metrics.memory_percentage = Some(Default::default());
+        configs.app_metrics.restart_count = Some(Default::default());
+
         configs.default_keys = vec!["default".into()];
 
         configs.droplet_metrics.memory.as_mut().unwrap().keys = vec!["memory".into()];
@@ -315,22 +343,36 @@ mod key_manager {
         configs.droplet_metrics.bandwidth.as_mut().unwrap().keys = vec!["bandwidth".into()];
         configs.droplets.keys = vec!["droplets".into()];
 
+        configs.app_metrics.cpu_percentage.as_mut().unwrap().keys = vec!["app_cpu_percentage".into()];
+        configs.app_metrics.memory_percentage.as_mut().unwrap().keys = vec!["app_memory_percentage".into()];
+        configs.app_metrics.restart_count.as_mut().unwrap().keys = vec!["app_restart_count".into()];
+        configs.apps.keys = vec!["apps".into()];
+
         let manager = KeyManagerImpl::new(configs, Registry::new()).unwrap();
 
-        let key = manager.acquire_key(KeyType::Memory).unwrap();
+        let key = manager.acquire_key(KeyType::DropletMemory).unwrap();
         assert_eq!(key, "memory".to_string());
-        let key = manager.acquire_key(KeyType::Cpu).unwrap();
+        let key = manager.acquire_key(KeyType::DropletCpu).unwrap();
         assert_eq!(key, "cpu".to_string());
-        let key = manager.acquire_key(KeyType::Load).unwrap();
+        let key = manager.acquire_key(KeyType::DropletLoad).unwrap();
         assert_eq!(key, "load".to_string());
-        let key = manager.acquire_key(KeyType::FileSystem).unwrap();
+        let key = manager.acquire_key(KeyType::DropletFileSystem).unwrap();
         assert_eq!(key, "filesystem".to_string());
-        let key = manager.acquire_key(KeyType::Bandwidth).unwrap();
+        let key = manager.acquire_key(KeyType::DropletBandwidth).unwrap();
         assert_eq!(key, "bandwidth".to_string());
         let key = manager.acquire_key(KeyType::Default).unwrap();
         assert_eq!(key, "default".to_string());
         let key = manager.acquire_key(KeyType::Droplets).unwrap();
         assert_eq!(key, "droplets".to_string());
+
+        let key = manager.acquire_key(KeyType::AppCpuPercentage).unwrap();
+        assert_eq!(key, "app_cpu_percentage".to_string());
+        let key = manager.acquire_key(KeyType::AppMemoryPercentage).unwrap();
+        assert_eq!(key, "app_memory_percentage".to_string());
+        let key = manager.acquire_key(KeyType::AppRestartCount).unwrap();
+        assert_eq!(key, "app_restart_count".to_string());
+        let key = manager.acquire_key(KeyType::Apps).unwrap();
+        assert_eq!(key, "apps".to_string());
     }
 
     #[test]
@@ -344,10 +386,10 @@ mod key_manager {
         let manager = KeyManagerImpl::new(configs, Registry::new()).unwrap();
 
         for _ in 0..250 {
-            manager.acquire_key(KeyType::Memory).unwrap();
+            manager.acquire_key(KeyType::DropletMemory).unwrap();
         }
 
-        let key = manager.acquire_key(KeyType::Memory).unwrap();
+        let key = manager.acquire_key(KeyType::DropletMemory).unwrap();
         assert_eq!(key, "default".to_string());
     }
 
@@ -359,7 +401,7 @@ mod key_manager {
 
         let manager = KeyManagerImpl::new(configs, Registry::new()).unwrap();
 
-        let key = manager.acquire_key(KeyType::Memory).unwrap();
+        let key = manager.acquire_key(KeyType::DropletMemory).unwrap();
         assert_eq!(key, "default".to_string());
     }
 }

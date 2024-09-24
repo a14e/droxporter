@@ -55,7 +55,8 @@ apps:
   url: "https://api.digitalocean.com/v2/apps"
   interval: 1h # default 1h
   # No support for app specific metrics yet
-  metrics: [ ] # default []
+  metrics: # default []
+    - active_deployment_phase
 
 # List of metrics to be loaded
 # A separate request will be executed for each type within 'types' for each droplet, so be careful
@@ -89,3 +90,18 @@ droplet-metrics: # default {}
     keys: [ ] # default []
     interval: 120s # default 120s
     enabled: false # default false
+
+app-metrics: # default {}
+  base-url: "https://api.digitalocean.com/v2/monitoring/metrics/apps"
+  cpu-percentage: # default {}
+    keys: [ ] # default []
+    interval: 60s
+    enabled: true
+  memory-percentage: # default {}
+    keys: [ ] # default []
+    interval: 60s
+    enabled: true
+  restart-count: # default {}
+    keys: [ ] # default []
+    interval: 60s
+    enabled: true

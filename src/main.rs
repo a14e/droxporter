@@ -21,6 +21,7 @@ use crate::client::do_client::DigitalOceanClientImpl;
 use crate::client::key_manager::KeyManagerImpl;
 use crate::config::config_model::{AppSettings, SslSettings};
 use crate::metrics::agent_metrics::AgentMetricsImpl;
+use crate::metrics::app_metrics_loader::AppMetricsServiceImpl;
 use crate::metrics::droplet_metrics_loader::DropletMetricsServiceImpl;
 use crate::metrics::droplet_store::DropletStoreImpl;
 use crate::metrics::app_store::AppStoreImpl;
@@ -111,6 +112,18 @@ async fn main() -> anyhow::Result<()> {
         let scheduler = scheduler.clone();
         async move { scheduler.run_agent_metrics_loading().await }
     });
+    tokio::spawn({
+        let scheduler = scheduler.clone();
+        async move { scheduler.run_app_cpu_percentage_metrics_loading().await }
+    });
+    tokio::spawn({
+        let scheduler = scheduler.clone();
+        async move { scheduler.run_app_memory_percentage_metrics_loading().await }
+    });
+    tokio::spawn({
+        let scheduler = scheduler.clone();
+        async move { scheduler.run_app_restart_count_metrics_loading().await }
+    });
 
     let route = Route::new()
         .at("/metrics", poem::get(prometheus_endpoint))
@@ -172,12 +185,19 @@ fn build_app(registry: Registry,
         configs,
         registry.clone(),
     )?;
+    let app_metrics_loader = AppMetricsServiceImpl::new(
+        Arc::new(client.clone()),
+        Arc::new(app_store.clone()),
+        configs,
+        registry.clone(),
+    )?;
 
     let scheduler: MetricsSchedulerImpl = MetricsSchedulerImpl::new(
         configs,
         Arc::new(droplets_store.clone()),
         Arc::new(app_store.clone()),
         Arc::new(droplets_metrics_loader),
+        Arc::new(app_metrics_loader),
         Arc::new(agent_metrics),
         registry.clone(),
     )?;

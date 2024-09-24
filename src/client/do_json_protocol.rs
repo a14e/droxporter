@@ -30,6 +30,7 @@ pub struct ListAppsResponse {
 pub struct AppResponse {
     pub id: String,
     pub spec: AppSpec,
+    pub active_deployment: Option<AppActiveDeployment>,
 }
 
 #[derive(Deserialize, PartialEq, Debug)]
@@ -37,21 +38,28 @@ pub struct AppSpec {
     pub name: String,
 }
 
+#[derive(Deserialize, PartialEq, Debug)]
+pub struct AppActiveDeployment {
+    pub id: String,
+    pub cause: String,
+    pub phase: String,
+}
+
 
 #[derive(Deserialize, PartialEq, Debug)]
-pub struct DataResponse {
+pub struct DropletDataResponse {
     pub status: String,
-    pub data: DataResult,
+    pub data: DropletDataResult,
 }
 
 #[derive(Deserialize, PartialEq, Debug)]
-pub struct DataResult {
-    pub result: Vec<MetricsResponse>,
+pub struct DropletDataResult {
+    pub result: Vec<DropletMetricsResponse>,
 }
 
 #[derive(Deserialize, PartialEq, Debug)]
-pub struct MetricsResponse {
-    pub metric: MetricMetaInfo,
+pub struct DropletMetricsResponse {
+    pub metric: DropletMetricMetaInfo,
     #[serde(deserialize_with = "deserialize_points")]
     pub values: Vec<MetricPoint>,
 }
@@ -60,7 +68,7 @@ pub struct MetricsResponse {
 // So, I prefer to create a bit of chaos =)
 // Also, if Digital Ocean ever decides to change the protocol, everything would continue to work, just with unknown labels.
 #[derive(Deserialize, PartialEq, Debug, Default)]
-pub struct MetricMetaInfo {
+pub struct DropletMetricMetaInfo {
     pub host_id: String,
 
     // for cpu
@@ -73,8 +81,40 @@ pub struct MetricMetaInfo {
 }
 
 #[derive(Deserialize, PartialEq, Debug)]
-pub struct MetricMetaDefault {
+pub struct DropletMetricMetaDefault {
     pub host_id: String
+}
+
+#[derive(Deserialize, PartialEq, Debug)]
+pub struct AppDataResponse {
+    pub status: String,
+    pub data: AppDataResult,
+}
+
+#[derive(Deserialize, PartialEq, Debug)]
+pub struct AppDataResult {
+    pub result: Vec<AppMetricsResponse>,
+}
+
+#[derive(Deserialize, PartialEq, Debug)]
+pub struct AppMetricsResponse {
+    pub metric: AppMetricMetaInfo,
+    #[serde(deserialize_with = "deserialize_points")]
+    pub values: Vec<MetricPoint>,
+}
+
+#[derive(Deserialize, PartialEq, Debug, Default)]
+pub struct AppMetricMetaInfo {
+    pub app_component: String,
+    pub app_component_instance: String,
+    pub app_owner_id: Option<String>,
+    pub app_uuid: String,
+}
+
+#[derive(Deserialize, PartialEq, Debug)]
+pub struct AppMetricMetaDefault {
+    pub app_component: String,
+    pub app_component_instance: String,
 }
 
 #[derive(PartialEq, Debug)]
@@ -116,7 +156,7 @@ fn deserialize_points<'de, D>(deserializer: D) -> Result<Vec<MetricPoint>, D::Er
 
 #[cfg(test)]
 mod deserialize_test {
-    use crate::client::do_json_protocol::{AppResponse, AppSpec, DataResponse, DataResult, DropletResponse, ListAppsResponse, ListDropletsResponse, MetricMetaInfo, MetricPoint, MetricsResponse};
+    use crate::client::do_json_protocol::{AppDataResponse, AppDataResult, AppMetricMetaInfo, AppMetricsResponse, AppResponse, AppSpec, AppActiveDeployment, DropletDataResponse, DropletDataResult, DropletMetricMetaInfo, DropletMetricsResponse, DropletResponse, ListAppsResponse, ListDropletsResponse, MetricPoint};
 
     #[test]
     fn deserialize_droplets() {
@@ -151,6 +191,11 @@ mod deserialize_test {
                     spec: AppSpec {
                         name: "AppName".to_string(),
                     },
+                    active_deployment: Some(AppActiveDeployment {
+                        id: "c079d423-e050-4a22-97cd-e9fbbbf020ad".to_string(),
+                        cause: "manual".to_string(),
+                        phase: "ACTIVE".to_string(),
+                    })
                 }
             ]
         };
@@ -170,21 +215,60 @@ mod deserialize_test {
     }
 
     #[test]
-    fn deserialize_metrics() {
+    fn deserialize_droplet_metrics() {
         let json_data = r#"{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"direction":"inbound","host_id":"335943309","interface":"public"},"values":[[1682246520,"0.00011012000000000001"],[1682246760,"0.00025643564356435644"]]}]}}"#;
-        let deserialized_data: DataResponse = serde_json::from_str(json_data).unwrap();
-        let expected_result = DataResponse {
+        let deserialized_data: DropletDataResponse = serde_json::from_str(json_data).unwrap();
+        let expected_result = DropletDataResponse {
             status: "success".into(),
-            data: DataResult {
+            data: DropletDataResult {
                 result: vec![
-                    MetricsResponse {
-                        metric: MetricMetaInfo {
+                    DropletMetricsResponse {
+                        metric: DropletMetricMetaInfo {
                             host_id: "335943309".into(),
                             ..Default::default()
                         },
                         values: vec![
                             MetricPoint { timestamp: 1682246520, value: "0.00011012000000000001".into() },
                             MetricPoint { timestamp: 1682246760, value: "0.00025643564356435644".into() },
+                        ]
+                    }
+                ]
+            },
+        };
+
+        assert_eq!(deserialized_data, expected_result)
+    }
+
+    #[test]
+    fn deserialize_app_metrics() {
+        let json_data = r#"{"status":"success","data":{"resultType":"matrix","result":[{"metric":{"app_component":"app-component","app_component_instance":"app-component-0","app_owner_id":"12345678","app_uuid":"671f8c90-25d4-42f5-8486-8ee23666baa6"},"values":[[1726819500,"16.846847534179688"]]},{"metric":{"app_component":"app-component","app_component_instance":"app-component-1","app_owner_id":"12345678","app_uuid":"671f8c90-25d4-42f5-8486-8ee23666baa6"},"values":[[1726819500,"16.955947875976562"]]}]}}"#;
+        let deserialized_data: AppDataResponse = serde_json::from_str(json_data).unwrap();
+        let expected_result = AppDataResponse {
+            status: "success".into(),
+            data: AppDataResult {
+                result: vec![
+                    AppMetricsResponse {
+                        metric: AppMetricMetaInfo {
+                            app_component: "app-component".into(),
+                            app_component_instance: "app-component-0".into(),
+                            app_owner_id: Some("12345678".into()),
+                            app_uuid: "671f8c90-25d4-42f5-8486-8ee23666baa6".into(),
+                            ..Default::default()
+                        },
+                        values: vec![
+                            MetricPoint { timestamp: 1726819500, value: "16.846847534179688".into() },
+                        ]
+                    },
+                    AppMetricsResponse {
+                        metric: AppMetricMetaInfo {
+                            app_component: "app-component".into(),
+                            app_component_instance: "app-component-1".into(),
+                            app_owner_id: Some("12345678".into()),
+                            app_uuid: "671f8c90-25d4-42f5-8486-8ee23666baa6".into(),
+                            ..Default::default()
+                        },
+                        values: vec![
+                            MetricPoint { timestamp: 1726819500, value: "16.955947875976562".into() },
                         ]
                     }
                 ]

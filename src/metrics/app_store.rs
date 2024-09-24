@@ -1,11 +1,12 @@
 use std::sync::Arc;
-use ahash::{HashSet};
+use ahash::HashSet;
 use async_trait::async_trait;
-use parking_lot::{RwLock};
+use parking_lot::RwLock;
 use prometheus::Opts;
 use crate::client::do_client::DigitalOceanClient;
 use crate::client::do_json_protocol::AppResponse;
-use crate::config::config_model::{AppSettings};
+use crate::config::config_model::{AppMetricsTypes, AppSettings};
+use crate::metrics::utils;
 
 #[async_trait]
 pub trait AppStore: Send + Sync {
@@ -20,6 +21,7 @@ pub trait AppStore: Send + Sync {
 pub struct BasicAppInfo {
     pub id: String,
     pub name: String,
+    pub active_deployment_phase: String,
 }
 
 impl From<AppResponse> for BasicAppInfo {
@@ -27,6 +29,10 @@ impl From<AppResponse> for BasicAppInfo {
         Self {
             id: value.id,
             name: value.spec.name,
+            active_deployment_phase: match value.active_deployment {
+                Some(active_deployment) => active_deployment.phase,
+                None => "UNKNOWN".to_string(),
+            },
         }
     }
 }
@@ -56,20 +62,20 @@ impl AppStoreImpl {
 
 #[derive(Clone)]
 struct AppMetrics {
-    up_gauge: prometheus::GaugeVec,
+    active_gauge: prometheus::GaugeVec,
 }
 
 impl AppMetrics {
     fn new(registry: prometheus::Registry) -> anyhow::Result<Self> {
-        let up_gauge = prometheus::GaugeVec::new(
-            Opts::new("droxporter_app_up", "Constant of 1 (DEBUG)"),
-            &["app"],
+        let active_gauge = prometheus::GaugeVec::new(
+            Opts::new("droxporter_app_active_deployment_phase", "The label active_deployment_phase indicates the current phase for the app. Values is always 1."),
+            &["app", "active_deployment_phase"],
         )?;
 
-        registry.register(Box::new(up_gauge.clone()))?;
+        registry.register(Box::new(active_gauge.clone()))?;
 
         let result = Self {
-            up_gauge,
+            active_gauge,
         };
         Ok(result)
     }
@@ -102,61 +108,25 @@ impl AppStore for AppStoreImpl {
     }
 
     fn record_app_metrics(&self) {
-        // let enabled_memory = self.configs.droplets.metrics.contains(&DropletMetricsTypes::Memory);
-        // let enabled_vcpu = self.configs.droplets.metrics.contains(&DropletMetricsTypes::VCpu);
-        // let enabled_disc = self.configs.droplets.metrics.contains(&DropletMetricsTypes::Disk);
-        // let enabled_status = self.configs.droplets.metrics.contains(&DropletMetricsTypes::Status);
+        let enabled_active_deployment_phase = self.configs.apps.metrics.contains(&AppMetricsTypes::ActiveDeploymentPhase);
 
         for app in self.store.read().iter() {
-            let name = &app.name;
-
-            use std::collections::HashMap;
-            
-            let mut labels = HashMap::new();
-            labels.insert("app", name.as_ref());
-            
-            self.metrics.up_gauge
-                .with(&labels)
-                .set(1.0 as f64);
-            // if enabled_memory {
-            //     self.metrics.memory_gauge
-            //         .with(&std::collections::HashMap::from([
-            //             ("droplet", name.as_ref())
-            //         ])).set(app.memory as f64);
-            // }
-
-            // if enabled_vcpu {
-            //     self.metrics.vcpu_gauge
-            //         .with(&std::collections::HashMap::from([
-            //             ("droplet", name.as_ref())
-            //         ])).set(app.vcpus as f64);
-            // }
-
-            // if enabled_disc {
-            //     self.metrics.disk_gauge
-            //         .with(&std::collections::HashMap::from([
-            //             ("droplet", name.as_ref())
-            //         ])).set(app.disk as f64);
-            // }
-
-            // if enabled_status {
-            //     self.metrics.status_gauge
-            //         .with(&std::collections::HashMap::from([
-            //             ("droplet", name.as_ref()),
-            //             ("status", app.status.as_ref()),
-            //         ])).set(1 as f64);
-            // }
+            if enabled_active_deployment_phase {
+                self.metrics.active_gauge
+                    .with(&std::collections::HashMap::from([
+                        ("app", app.name.as_ref()),
+                        ("active_deployment_phase", app.active_deployment_phase.as_ref()),
+                    ])).set(1 as f64);
+            }
         }
+
         let lock = self.store.read();
         let apps: HashSet<_> = {
             lock.iter().map(|x| x.name.as_str()).collect()
         };
 
-        // // to prevent phantom droplets
-        // utils::remove_old_droplets(&self.metrics.memory_gauge, &droplets);
-        // utils::remove_old_droplets(&self.metrics.vcpu_gauge, &droplets);
-        // utils::remove_old_droplets(&self.metrics.disk_gauge, &droplets);
-        // utils::remove_old_droplets(&self.metrics.status_gauge, &droplets);
+        // to prevent phantom apps
+        utils::remove_old_apps_for_gauge_metric(&self.metrics.active_gauge, &apps);
     }
 
     fn list_apps(&self) -> Vec<BasicAppInfo> {
