@@ -44,7 +44,7 @@ fn create_key_limit(time: DateTime<Utc>) -> KeyLimit {
     KeyLimit::new(
         [
             (250, Duration::minutes(1)),
-            (2000, Duration::hours(1))
+            (5000, Duration::hours(1))
         ],
         time,
     )
