@@ -378,8 +378,8 @@ impl DigitalOceanClient for DigitalOceanClientImpl {
     }
 
     async fn list_apps(&self,
-                           per_page: u64,
-                           page: u64) -> anyhow::Result<ListAppsResponse> {
+                       per_page: u64,
+                       page: u64) -> anyhow::Result<ListAppsResponse> {
         let mut url = Url::parse(self.config.apps.url.as_str())?;
         url.query_pairs_mut()
             .append_pair("per_page", per_page.to_string().as_str())

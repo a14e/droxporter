@@ -326,83 +326,83 @@ impl MetricsScheduler for MetricsSchedulerImpl {
     }
 
     async fn run_app_cpu_percentage_metrics_loading(&self) -> anyhow::Result<()> {
-        if let Some(cpu_percentage) = self.configs.app_metrics.cpu_percentage.as_ref() {
-            if !cpu_percentage.enabled {
-                info!("Apps cpu_percentage metrics are disabled");
+        if let Some(app_cpu_percentage) = self.configs.app_metrics.cpu_percentage.as_ref() {
+            if !app_cpu_percentage.enabled {
+                info!("Apps app_cpu_percentage metrics are disabled");
                 return Ok(());
             }
-            info!("Starting Apps cpu_percentage metrics loading loop");
+            info!("Starting Apps app_cpu_percentage metrics loading loop");
 
             // timeout for initial load
             // looks ugly, but simple =)
-            let first_delay = Duration::from_secs(10).min(cpu_percentage.interval);
+            let first_delay = Duration::from_secs(10).min(app_cpu_percentage.interval);
             let mut first = true;
             loop {
-                let timeout = if first { first_delay } else { cpu_percentage.interval };
+                let timeout = if first { first_delay } else { app_cpu_percentage.interval };
                 first = false;
                 tokio::time::sleep(timeout).await;
                 let start = Instant::now();
 
                 if let Err(e) = self.app_metrics_service.load_cpu_percentage().await {
-                    error!("Apps cpu_percentage metrics loading failed with err {e}");
-                    self.record_job_metrics("cpu_percentage", false, start);
+                    error!("Apps app_cpu_percentage metrics loading failed with err {e}");
+                    self.record_job_metrics("app_cpu_percentage", false, start);
                     continue;
                 }
-                self.record_job_metrics("cpu_percentage", true, start);
+                self.record_job_metrics("app_cpu_percentage", true, start);
             }
         }
         Ok(())
     }
 
     async fn run_app_memory_percentage_metrics_loading(&self) -> anyhow::Result<()> {
-        if let Some(memory_percentage) = self.configs.app_metrics.memory_percentage.as_ref() {
-            if !memory_percentage.enabled {
-                info!("Apps memory_percentage metrics are disabled");
+        if let Some(app_memory_percentage) = self.configs.app_metrics.memory_percentage.as_ref() {
+            if !app_memory_percentage.enabled {
+                info!("Apps app_memory_percentage metrics are disabled");
                 return Ok(());
             }
-            info!("Starting Apps memory_percentage metrics loading loop");
+            info!("Starting Apps app_memory_percentage metrics loading loop");
 
             // timeout for initial load
             // looks ugly, but simple =)
-            let first_delay = Duration::from_secs(10).min(memory_percentage.interval);
+            let first_delay = Duration::from_secs(10).min(app_memory_percentage.interval);
             let mut first = true;
             loop {
-                let timeout = if first { first_delay } else { memory_percentage.interval };
+                let timeout = if first { first_delay } else { app_memory_percentage.interval };
                 first = false;
                 tokio::time::sleep(timeout).await;
                 let start = Instant::now();
 
                 if let Err(e) = self.app_metrics_service.load_memory_percentage().await {
-                    error!("Apps memory_percentage metrics loading failed with err {e}");
-                    self.record_job_metrics("memory_percentage", false, start);
+                    error!("Apps app_memory_percentage metrics loading failed with err {e}");
+                    self.record_job_metrics("app_memory_percentage", false, start);
                     continue;
                 }
-                self.record_job_metrics("memory_percentage", true, start);
+                self.record_job_metrics("app_memory_percentage", true, start);
             }
         }
         Ok(())
     }
 
     async fn run_app_restart_count_metrics_loading(&self) -> anyhow::Result<()> {
-        if let Some(restart_count) = self.configs.app_metrics.restart_count.as_ref() {
-            if !restart_count.enabled {
-                info!("Apps restart_count metrics are disabled");
+        if let Some(app_restart_count) = self.configs.app_metrics.restart_count.as_ref() {
+            if !app_restart_count.enabled {
+                info!("Apps app_restart_count metrics are disabled");
                 return Ok(());
             }
-            info!("Starting Apps restart_count metrics loading loop");
+            info!("Starting Apps app_restart_count metrics loading loop");
 
             // timeout for initial load
             // looks ugly, but simple =)
-            let first_delay = Duration::from_secs(10).min(restart_count.interval);
+            let first_delay = Duration::from_secs(10).min(app_restart_count.interval);
             let mut first = true;
             let mut last_interval_end: Option<DateTime<Utc>> = None;
             loop {
-                let timeout = if first { first_delay } else { restart_count.interval };
+                let timeout = if first { first_delay } else { app_restart_count.interval };
                 first = false;
                 tokio::time::sleep(timeout).await;
                 let start = Instant::now();
 
-                // restart_count is a counter, so we keep track about which
+                // app_restart_count is a counter, so we keep track about which
                 // interval we have queried last time in order to not overlap.
                 let interval_end = Utc::now() - Duration::from_secs(1);
                 let interval_start = last_interval_end.unwrap_or(interval_end);
@@ -410,11 +410,11 @@ impl MetricsScheduler for MetricsSchedulerImpl {
                 last_interval_end = Some(interval_end + Duration::from_secs(1));
 
                 if let Err(e) = self.app_metrics_service.load_restart_count(interval_start, interval_end).await {
-                    error!("Apps restart_count metrics loading failed with err {e}");
-                    self.record_job_metrics("restart_count", false, start);
+                    error!("Apps app_restart_count metrics loading failed with err {e}");
+                    self.record_job_metrics("app_restart_count", false, start);
                     continue;
                 }
-                self.record_job_metrics("restart_count", true, start);
+                self.record_job_metrics("app_restart_count", true, start);
             }
         }
         Ok(())

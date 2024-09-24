@@ -99,7 +99,7 @@ impl AppStore for AppStoreImpl {
         let per_page: u64 = 100u64;
         while fetch_next {
             let loaded = self.client.list_apps(per_page, page).await?;
-            fetch_next = !loaded.apps.is_empty();
+            fetch_next = loaded.links.pages.next.is_some();
             result.extend(loaded.apps.into_iter().map(BasicAppInfo::from));
             page += 1;
         }
