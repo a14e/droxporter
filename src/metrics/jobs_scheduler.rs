@@ -161,7 +161,7 @@ impl MetricsScheduler for MetricsSchedulerImpl {
                 info!("Bandwidth metrics are disabled");
                 return Ok(());
             }
-            info!("Staring bandwidth metrics loading loop");
+            info!("Starting bandwidth metrics loading loop");
 
             // timeout for initial load
             // looks ugly, but simple =)
@@ -190,7 +190,7 @@ impl MetricsScheduler for MetricsSchedulerImpl {
                 info!("Cpu metrics are disabled");
                 return Ok(());
             }
-            info!("Staring cpu metrics loading loop");
+            info!("Starting cpu metrics loading loop");
 
             // timeout for initial load
             // looks ugly, but simple =)
@@ -219,7 +219,7 @@ impl MetricsScheduler for MetricsSchedulerImpl {
                 info!("Filesystem metrics are disabled");
                 return Ok(());
             }
-            info!("Staring filesystem metrics loading loop");
+            info!("Starting filesystem metrics loading loop");
 
             // timeout for initial load
             // looks ugly, but simple =)
@@ -248,7 +248,7 @@ impl MetricsScheduler for MetricsSchedulerImpl {
                 info!("Memory metrics are disabled");
                 return Ok(());
             }
-            info!("Staring memory metrics loading loop");
+            info!("Starting memory metrics loading loop");
 
             // timeout for initial load
             // looks ugly, but simple =)
@@ -277,7 +277,7 @@ impl MetricsScheduler for MetricsSchedulerImpl {
                 info!("Load metrics are disabled");
                 return Ok(());
             }
-            info!("Staring load metrics loading loop");
+            info!("Starting load metrics loading loop");
 
 
             // timeout for initial load
@@ -307,7 +307,7 @@ impl MetricsScheduler for MetricsSchedulerImpl {
             info!("Agent metrics are disabled");
             return Ok(());
         }
-        info!("Staring load agent metrics loop");
+        info!("Starting load agent metrics loop");
         // timeout for initial load
         // looks ugly, but simple =)
         let first_delay = Duration::from_secs(10).min(self.configs.exporter_metrics.interval);
