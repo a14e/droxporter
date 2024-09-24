@@ -117,6 +117,19 @@ for possible fields and interpretation of numbers.
 Labels returned by Digital Ocean: droxporter_droplet_status{status} and droxporter_droplet_filesystem{device, fstype,
 mountpoint}
 
+# List of app metrics
+
+| Metric Name                            | Description                                  | Labels                                                                                                                                                                                                                                                                                                                                | Type    |
+| -------------------------------------- | -------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+| droxporter_app_active_deployment_phase | Last phase for current active deployment     | app - the app's name,<br /> app_component - name of the app's component (e.g. `web`),<br /> app_component_instance - numbered process (e.g. `web-0`),<br />phase - `ACTIVE` for active deployments, see [Monitoring API docs](https://docs.digitalocean.com/reference/api/api-reference/#operation/apps_list) for all possible values | Gauge   |
+| droxporter_app_cpu_percentage          | CPU % for app instance                       | app - the app's name,<br /> app_component - name of the app's component (e.g. `web`),<br /> app_component_instance - numbered process (e.g. `web-0`)                                                                                                                                                                                  | Gauge   |
+| droxporter_app_memory_percentage       | Memory % for app instance disk volume        | app - the app's name,<br /> app_component - name of the app's component (e.g. `web`),<br /> app_component_instance - numbered process (e.g. `web-0`)                                                                                                                                                                                  | Gauge   |
+| droxporter_app_restart_count           | Number of app instance restarts (as counter) | app - the app's name,<br /> app_component - name of the app's component (e.g. `web`),<br /> app_component_instance - numbered process (e.g. `web-0`)                                                                                                                                                                                  | Counter |
+
+Note: Metric values are taken directly
+from [requests](https://docs.digitalocean.com/reference/api/api-reference/#tag/Monitoring). Refer to the original source
+for possible fields and interpretation of numbers.
+
 # List of exporter's own metrics
 
 | Metric Name                                        | Description                                                                    | Labels                                                                                               | Type      |
