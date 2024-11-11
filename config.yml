@@ -54,7 +54,6 @@ apps:
   keys: [ ]
   url: "https://api.digitalocean.com/v2/apps"
   interval: 1h # default 1h
-  # No support for app specific metrics yet
   metrics: # default []
     - active_deployment_phase
 
