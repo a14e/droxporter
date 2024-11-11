@@ -6,6 +6,7 @@ The main features of Droxporter include:
 
 * Lightweight and efficient. Written entirely in Rust.
 * Collecting Droplet-related metrics, such as CPU usage, memory usage, disk space, bandwidth, and more.
+* Collecting AppPlatform-related metrics, such as CPU usage and memory usage.
 * Support for HTTPS, basic authentication, and custom settings.
 * Built-in rate limiting to respect DigitalOcean's API rate limits and avoid potential issues. 
 * Ability to use multiple API keys for better flexibility and control over the rate limits.
@@ -17,8 +18,8 @@ Digital Ocean provides an [API](https://docs.digitalocean.com/reference/api/api-
 HTTP methods
 for [retrieving a list of droplets](https://docs.digitalocean.com/reference/api/api-reference/#operation/droplets_list)
 and
-for [metrics](https://docs.digitalocean.com/reference/api/api-reference/#tag/Monitoring) on droplets.
-The exporter periodically polls Digital Ocean for the list of droplets and caches it.
+for [metrics on apps and droplets](https://docs.digitalocean.com/reference/api/api-reference/#tag/Monitoring).
+The exporter periodically polls Digital Ocean for the list of droplets and apps and caches it.
 The exporter also launches periodic tasks to poll Digital Ocean for metrics on these droplets and store their metrics.
 Although Digital Ocean provides an interval of points in the response, only the last one is saved, as there are no
 timestamps in the Prometheus endpoint.
@@ -35,8 +36,9 @@ so it is highly recommended to review the [Limits And Keys](#limits-and-keys) se
 ## Primary use case
 
 The droxporter exporter is best suited for personal or small projects when there's no time to set up
-[node_exporter](https://github.com/prometheus/node_exporter) on all machines. You can install a simple exporter on a
-single node and not worry for some time. To understand our limitations, see the next section.
+[node_exporter](https://github.com/prometheus/node_exporter) on all machines or if you are interested in metrics
+on apps. You can install a simple exporter on a single node and not worry for some time. To understand our limitations,
+see the next section.
 
 ## Limitations
 
