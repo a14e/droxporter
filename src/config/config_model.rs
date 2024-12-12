@@ -12,7 +12,7 @@ pub struct AppSettings {
     pub droplets: DropletSettings,
     #[serde(default)]
     pub apps: AppPlatformSettings,
-    #[serde(default)]
+    #[serde(default, alias = "metrics")]
     pub droplet_metrics: DropletMetricsConfig,
     #[serde(default)]
     pub app_metrics: AppMetricsConfig,
