@@ -3,7 +3,7 @@ use async_trait::async_trait;
 use chrono::{Duration, Utc};
 use prometheus::Opts;
 use crate::client::do_client::{ClientLoadType, DigitalOceanClient, FileSystemRequest, MemoryRequest, NetworkDirection, NetworkInterface};
-use crate::client::do_json_protocol::{DataResponse, MetricMetaInfo, MetricsResponse};
+use crate::client::do_json_protocol::{DropletDataResponse, DropletMetricMetaInfo, DropletMetricsResponse};
 use crate::config::config_model::{AppSettings, BandwidthType, FilesystemTypes, LoadTypes, MemoryTypes};
 use crate::metrics::droplet_store::DropletStore;
 use crate::metrics::utils;
@@ -23,7 +23,7 @@ pub struct DropletMetricsServiceImpl {
     client: Arc<dyn DigitalOceanClient>,
     droplet_store: Arc<dyn DropletStore>,
     configs: &'static AppSettings,
-    metrics: LoaderMetrics,
+    metrics: LoaderDropletMetrics,
 }
 
 impl DropletMetricsServiceImpl {
@@ -35,14 +35,14 @@ impl DropletMetricsServiceImpl {
             client,
             droplet_store,
             configs,
-            metrics: LoaderMetrics::new(registry)?,
+            metrics: LoaderDropletMetrics::new(registry)?,
         };
         Ok(result)
     }
 }
 
 #[derive(Clone)]
-struct LoaderMetrics {
+struct LoaderDropletMetrics {
     droplet_bandwidth: prometheus::GaugeVec,
     droplet_cpu: prometheus::GaugeVec,
     droplet_filesystem: prometheus::GaugeVec,
@@ -50,7 +50,7 @@ struct LoaderMetrics {
     droplet_load: prometheus::GaugeVec,
 }
 
-impl LoaderMetrics {
+impl LoaderDropletMetrics {
     fn new(registry: prometheus::Registry) -> anyhow::Result<Self> {
         let droplet_bandwidth = prometheus::GaugeVec::new(
             Opts::new("droxporter_droplet_bandwidth", "Bandwidth of droplet"),
@@ -97,7 +97,7 @@ macro_rules! unwrap_or_return_ok {
     }
 }
 
-fn extract_last_value(response: DataResponse) -> f64 {
+fn extract_last_value(response: DropletDataResponse) -> f64 {
     response.data.result.iter()
         .flat_map(|x| x.values.iter())
         .max_by_key(|x| x.timestamp)
@@ -105,7 +105,7 @@ fn extract_last_value(response: DataResponse) -> f64 {
         .unwrap_or(0f64)
 }
 
-fn extract_meta_with_last_values(response: DataResponse) -> Vec<(MetricMetaInfo, f64)> {
+fn extract_meta_with_last_values(response: DropletDataResponse) -> Vec<(DropletMetricMetaInfo, f64)> {
     response.data.result.into_iter()
         .map(|x| {
             let last_point = last_point_for_metric(&x);
@@ -114,7 +114,7 @@ fn extract_meta_with_last_values(response: DataResponse) -> Vec<(MetricMetaInfo,
         }).collect()
 }
 
-fn last_point_for_metric(metrics: &MetricsResponse) -> f64 {
+fn last_point_for_metric(metrics: &DropletMetricsResponse) -> f64 {
     metrics.values.iter()
         .max_by_key(|x| x.timestamp)
         .and_then(|x| x.value.parse::<f64>().ok())
@@ -130,7 +130,7 @@ fn metrics_read_interval() -> Duration {
 #[async_trait]
 impl DropletMetricsService for DropletMetricsServiceImpl {
     async fn load_bandwidth(&self) -> anyhow::Result<()> {
-        let bandwidth = unwrap_or_return_ok!(self.configs.metrics.bandwidth.as_ref());
+        let bandwidth = unwrap_or_return_ok!(self.configs.droplet_metrics.bandwidth.as_ref());
 
         let enable_private_in = bandwidth.types.contains(&BandwidthType::PrivateInbound);
         let enable_private_out = bandwidth.types.contains(&BandwidthType::PrivateOutbound);
@@ -154,7 +154,7 @@ impl DropletMetricsService for DropletMetricsServiceImpl {
         for droplet in droplets.iter() {
             for (interface, dir) in &metric_types {
                 let res = self.client
-                    .get_bandwidth(
+                    .get_droplet_bandwidth(
                         droplet.id,
                         *interface,
                         *dir,
@@ -196,7 +196,7 @@ impl DropletMetricsService for DropletMetricsServiceImpl {
 
         for droplet in self.droplet_store.list_droplets().iter() {
             let res = self.client
-                .get_cpu(
+                .get_droplet_cpu(
                     droplet.id,
                     interval_start,
                     interval_end
@@ -222,7 +222,7 @@ impl DropletMetricsService for DropletMetricsServiceImpl {
     }
 
     async fn load_filesystem_metrics(&self) -> anyhow::Result<()> {
-        let filesystem = unwrap_or_return_ok!(self.configs.metrics.filesystem.as_ref());
+        let filesystem = unwrap_or_return_ok!(self.configs.droplet_metrics.filesystem.as_ref());
 
         let enable_free = filesystem.types.contains(&FilesystemTypes::Free);
         let enable_size = filesystem.types.contains(&FilesystemTypes::Size);
@@ -240,7 +240,7 @@ impl DropletMetricsService for DropletMetricsServiceImpl {
         for droplet in self.droplet_store.list_droplets().iter() {
             for metrics_type in &filesystem_types {
                 let res = self.client
-                    .get_file_system(
+                    .get_droplet_file_system(
                         droplet.id,
                         *metrics_type,
                         interval_start,
@@ -279,7 +279,7 @@ impl DropletMetricsService for DropletMetricsServiceImpl {
     }
 
     async fn load_memory_metrics(&self) -> anyhow::Result<()> {
-        let memory = unwrap_or_return_ok!(self.configs.metrics.memory.as_ref());
+        let memory = unwrap_or_return_ok!(self.configs.droplet_metrics.memory.as_ref());
 
         let enable_free = memory.types.contains(&MemoryTypes::Free);
         let enable_available = memory.types.contains(&MemoryTypes::Available);
@@ -335,7 +335,7 @@ impl DropletMetricsService for DropletMetricsServiceImpl {
     }
 
     async fn load_load_metrics(&self) -> anyhow::Result<()> {
-        let load = unwrap_or_return_ok!(self.configs.metrics.load.as_ref());
+        let load = unwrap_or_return_ok!(self.configs.droplet_metrics.load.as_ref());
 
         let enable_load1 = load.types.contains(&LoadTypes::Load1);
         let enable_load5 = load.types.contains(&LoadTypes::Load5);
@@ -355,7 +355,7 @@ impl DropletMetricsService for DropletMetricsServiceImpl {
         for droplet in self.droplet_store.list_droplets().iter() {
             for load_type in &load_types {
                 let res = self.client
-                    .get_load(
+                    .get_droplet_load(
                         droplet.id,
                         *load_type,
                         interval_start,

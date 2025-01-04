@@ -11,7 +11,11 @@ pub struct AppSettings {
     #[serde(default)]
     pub droplets: DropletSettings,
     #[serde(default)]
-    pub metrics: MetricsConfig,
+    pub apps: AppPlatformSettings,
+    #[serde(default, alias = "metrics")]
+    pub droplet_metrics: DropletMetricsConfig,
+    #[serde(default)]
+    pub app_metrics: AppMetricsConfig,
     #[serde(default)]
     pub exporter_metrics: ExporterMetricsConfigs,
     #[serde(default)]
@@ -89,8 +93,8 @@ fn default_ssl_key() -> String {
 
 #[derive(Deserialize, Clone, Default)]
 #[serde(rename_all = "kebab-case")]
-pub struct MetricsConfig {
-    #[serde(default = "default_base_url")]
+pub struct DropletMetricsConfig {
+    #[serde(default = "default_droplet_metrics_base_url")]
     pub base_url: String,
 
     pub bandwidth: Option<BandwidthSettings>,
@@ -98,6 +102,17 @@ pub struct MetricsConfig {
     pub filesystem: Option<FilesystemSettings>,
     pub memory: Option<MemorySettings>,
     pub load: Option<LoadSettings>,
+}
+
+#[derive(Deserialize, Clone, Default)]
+#[serde(rename_all = "kebab-case")]
+pub struct AppMetricsConfig {
+    #[serde(default = "default_app_metrics_base_url")]
+    pub base_url: String,
+
+    pub cpu_percentage: Option<AppCpuPercentageSettings>,
+    pub memory_percentage: Option<AppMemoryPercentageSettings>,
+    pub restart_count: Option<AppRestartCountSettings>,
 }
 
 #[derive(Deserialize, Clone, Default)]
@@ -140,6 +155,20 @@ pub struct DropletSettings {
     pub metrics: Vec<DropletMetricsTypes>,
 }
 
+#[derive(Deserialize, Clone, Default)]
+#[serde(rename_all = "kebab-case")]
+pub struct AppPlatformSettings {
+    #[serde(default)]
+    pub keys: Vec<Key>,
+    #[serde(default = "default_apps_url")]
+    pub url: String,
+    #[serde(default = "duration_1_hour")]
+    #[serde(with = "humantime_serde")]
+    pub interval: std::time::Duration,
+    #[serde(default)]
+    pub metrics: Vec<AppMetricsTypes>,
+}
+
 #[derive(Deserialize, Clone, PartialEq, Eq)]
 pub enum DropletMetricsTypes {
     #[serde(rename = "memory")]
@@ -150,6 +179,12 @@ pub enum DropletMetricsTypes {
     Disk,
     #[serde(rename = "status")]
     Status,
+}
+
+#[derive(Deserialize, Clone, PartialEq, Eq)]
+pub enum AppMetricsTypes {
+    #[serde(rename = "active_deployment_phase")]
+    ActiveDeploymentPhase,
 }
 
 #[derive(Deserialize, Clone, Default)]
@@ -262,6 +297,42 @@ pub enum LoadTypes {
     Load15,
 }
 
+#[derive(Deserialize, Clone, Default)]
+#[serde(rename_all = "kebab-case")]
+pub struct AppCpuPercentageSettings {
+    #[serde(default)]
+    pub keys: Vec<String>,
+    #[serde(default = "duration_60_seconds")]
+    #[serde(with = "humantime_serde")]
+    pub interval: std::time::Duration,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+}
+
+#[derive(Deserialize, Clone, Default)]
+#[serde(rename_all = "kebab-case")]
+pub struct AppMemoryPercentageSettings {
+    #[serde(default)]
+    pub keys: Vec<String>,
+    #[serde(default = "duration_60_seconds")]
+    #[serde(with = "humantime_serde")]
+    pub interval: std::time::Duration,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+}
+
+#[derive(Deserialize, Clone, Default)]
+#[serde(rename_all = "kebab-case")]
+pub struct AppRestartCountSettings {
+    #[serde(default)]
+    pub keys: Vec<String>,
+    #[serde(default = "duration_60_seconds")]
+    #[serde(with = "humantime_serde")]
+    pub interval: std::time::Duration,
+    #[serde(default = "default_true")]
+    pub enabled: bool,
+}
+
 fn duration_1_hour() -> std::time::Duration {
     std::time::Duration::from_secs(60 * 60)
 }
@@ -282,12 +353,20 @@ fn duration_120_seconds() -> std::time::Duration {
     std::time::Duration::from_secs(120)
 }
 
-fn default_base_url() -> String {
+fn default_droplet_metrics_base_url() -> String {
     "https://api.digitalocean.com/v2/monitoring/metrics/droplet".into()
+}
+
+fn default_app_metrics_base_url() -> String {
+    "https://api.digitalocean.com/v2/monitoring/metrics/apps".into()
 }
 
 fn default_droplets_url() -> String {
     "https://api.digitalocean.com/v2/droplets".into()
+}
+
+fn default_apps_url() -> String {
+    "https://api.digitalocean.com/v2/apps".into()
 }
 
 fn default_true() -> bool {

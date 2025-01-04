@@ -125,7 +125,7 @@ impl DropletStore for DropletStoreImpl {
         let per_page: u64 = 100u64;
         while fetch_next {
             let loaded = self.client.list_droplets(per_page, page).await?;
-            fetch_next = !loaded.droplets.is_empty();
+            fetch_next = loaded.links.pages.next.is_some();
             result.extend(loaded.droplets.into_iter().map(BasicDropletInfo::from));
             page += 1;
         }

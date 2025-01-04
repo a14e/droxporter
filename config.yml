@@ -49,13 +49,21 @@ droplets: # default {}
     - disk
     - status
 
+# App Platform polling.
+apps:
+  keys: [ ]
+  url: "https://api.digitalocean.com/v2/apps"
+  interval: 1h # default 1h
+  metrics: # default []
+    - active_deployment_phase
+
 # List of metrics to be loaded
 # A separate request will be executed for each type within 'types' for each droplet, so be careful
 # not to add too many to avoid hitting request limits
 # The intervals are wide because:
 ##  1. To avoid hitting limits
 ##  2. Data on Digital Ocean updates infrequently
-metrics: # default {}
+droplet-metrics: # default {}
   base-url: "https://api.digitalocean.com/v2/monitoring/metrics/droplet"
   bandwidth: # default {}
     types: [ private_inbound, private_outbound, public_inbound, public_outbound ] # default []
@@ -82,7 +90,17 @@ metrics: # default {}
     interval: 120s # default 120s
     enabled: false # default false
 
-
-
-
-
+app-metrics: # default {}
+  base-url: "https://api.digitalocean.com/v2/monitoring/metrics/apps"
+  cpu-percentage: # default {}
+    keys: [ ] # default []
+    interval: 60s
+    enabled: true
+  memory-percentage: # default {}
+    keys: [ ] # default []
+    interval: 60s
+    enabled: true
+  restart-count: # default {}
+    keys: [ ] # default []
+    interval: 60s
+    enabled: true
