@@ -266,7 +266,7 @@ impl DigitalOceanClientImpl {
     }
 }
 
-#[derive(PartialEq, Eq, Hash, Copy, Clone)]
+#[derive(PartialEq, Eq, Hash, Copy, Clone, Debug)]
 pub enum RequestType {
     Droplets,
     Apps,

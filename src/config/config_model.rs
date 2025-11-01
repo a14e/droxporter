@@ -3,7 +3,7 @@ use std::collections::HashMap;
 
 pub type Key = String;
 
-#[derive(Deserialize, Clone, Default)]
+#[derive(Deserialize, Clone, Default, Debug)]
 #[serde(rename_all = "kebab-case")]
 pub struct AppSettings {
     #[serde(default)]
@@ -24,7 +24,7 @@ pub struct AppSettings {
     pub custom: CustomSettings,
 }
 
-#[derive(Deserialize, Clone, Default)]
+#[derive(Deserialize, Clone, Default, Debug)]
 #[serde(rename_all = "kebab-case")]
 pub struct CustomSettings {
     #[serde(default)]
@@ -33,7 +33,7 @@ pub struct CustomSettings {
     pub labels: HashMap<String, String>,
 }
 
-#[derive(Deserialize, Clone, Default)]
+#[derive(Deserialize, Clone, Default, Debug)]
 #[serde(rename_all = "kebab-case")]
 pub struct EndpointConfig {
     #[serde(default = "default_port")]
@@ -52,7 +52,7 @@ fn default_host() -> String {
     "0.0.0.0".into()
 }
 
-#[derive(Deserialize, Clone, Default)]
+#[derive(Deserialize, Clone, Default, Debug)]
 #[serde(rename_all = "kebab-case")]
 pub struct AuthSettings {
     #[serde(default)]
@@ -71,7 +71,7 @@ fn default_password() -> String {
     "password".into()
 }
 
-#[derive(Deserialize, Clone, Default)]
+#[derive(Deserialize, Clone, Default, Debug)]
 #[serde(rename_all = "kebab-case")]
 pub struct SslSettings {
     #[serde(default)]
@@ -90,7 +90,7 @@ fn default_ssl_key() -> String {
     "./key.pem".into()
 }
 
-#[derive(Deserialize, Clone, Default)]
+#[derive(Deserialize, Clone, Default, Debug)]
 #[serde(rename_all = "kebab-case")]
 pub struct DropletMetricsConfig {
     #[serde(default = "default_droplet_metrics_base_url")]
@@ -103,7 +103,7 @@ pub struct DropletMetricsConfig {
     pub load: Option<LoadSettings>,
 }
 
-#[derive(Deserialize, Clone, Default)]
+#[derive(Deserialize, Clone, Default, Debug)]
 #[serde(rename_all = "kebab-case")]
 pub struct AppMetricsConfig {
     #[serde(default = "default_app_metrics_base_url")]
@@ -114,7 +114,7 @@ pub struct AppMetricsConfig {
     pub restart_count: Option<AppRestartCountSettings>,
 }
 
-#[derive(Deserialize, Clone, Default)]
+#[derive(Deserialize, Clone, Default, Debug)]
 #[serde(rename_all = "kebab-case")]
 pub struct ExporterMetricsConfigs {
     #[serde(default)]
@@ -126,7 +126,7 @@ pub struct ExporterMetricsConfigs {
     pub interval: std::time::Duration,
 }
 
-#[derive(Deserialize, Clone, PartialEq, Eq)]
+#[derive(Deserialize, Clone, PartialEq, Eq, Debug)]
 pub enum AgentMetricsType {
     #[serde(rename = "memory")]
     Memory,
@@ -140,7 +140,7 @@ pub enum AgentMetricsType {
     Jobs,
 }
 
-#[derive(Deserialize, Clone, Default)]
+#[derive(Deserialize, Clone, Default, Debug)]
 #[serde(rename_all = "kebab-case")]
 pub struct DropletSettings {
     #[serde(default)]
@@ -154,7 +154,7 @@ pub struct DropletSettings {
     pub metrics: Vec<DropletMetricsTypes>,
 }
 
-#[derive(Deserialize, Clone, Default)]
+#[derive(Deserialize, Clone, Default, Debug)]
 #[serde(rename_all = "kebab-case")]
 pub struct AppPlatformSettings {
     #[serde(default)]
@@ -168,7 +168,7 @@ pub struct AppPlatformSettings {
     pub metrics: Vec<AppMetricsTypes>,
 }
 
-#[derive(Deserialize, Clone, PartialEq, Eq)]
+#[derive(Deserialize, Clone, PartialEq, Eq, Debug)]
 pub enum DropletMetricsTypes {
     #[serde(rename = "memory")]
     Memory,
@@ -180,13 +180,13 @@ pub enum DropletMetricsTypes {
     Status,
 }
 
-#[derive(Deserialize, Clone, PartialEq, Eq)]
+#[derive(Deserialize, Clone, PartialEq, Eq, Debug)]
 pub enum AppMetricsTypes {
     #[serde(rename = "active_deployment_phase")]
     ActiveDeploymentPhase,
 }
 
-#[derive(Deserialize, Clone, Default)]
+#[derive(Deserialize, Clone, Default, Debug)]
 #[serde(rename_all = "kebab-case")]
 pub struct BandwidthSettings {
     #[serde(default)]
@@ -200,7 +200,7 @@ pub struct BandwidthSettings {
     pub enabled: bool,
 }
 
-#[derive(Deserialize, Clone, PartialEq, Eq)]
+#[derive(Deserialize, Clone, PartialEq, Eq, Debug)]
 pub enum BandwidthType {
     #[serde(rename = "private_inbound")]
     PrivateInbound,
@@ -212,7 +212,7 @@ pub enum BandwidthType {
     PublicOutbound,
 }
 
-#[derive(Deserialize, Clone, Default)]
+#[derive(Deserialize, Clone, Default, Debug)]
 #[serde(rename_all = "kebab-case")]
 pub struct CpuSettings {
     #[serde(default)]
@@ -224,7 +224,7 @@ pub struct CpuSettings {
     pub enabled: bool,
 }
 
-#[derive(Deserialize, Clone, Default)]
+#[derive(Deserialize, Clone, Default, Debug)]
 #[serde(rename_all = "kebab-case")]
 pub struct FilesystemSettings {
     #[serde(default)]
@@ -238,7 +238,7 @@ pub struct FilesystemSettings {
     pub enabled: bool,
 }
 
-#[derive(Deserialize, Clone, Eq, PartialEq)]
+#[derive(Deserialize, Clone, Eq, PartialEq, Debug)]
 pub enum FilesystemTypes {
     #[serde(rename = "free")]
     Free,
@@ -246,7 +246,7 @@ pub enum FilesystemTypes {
     Size,
 }
 
-#[derive(Deserialize, Clone, Default)]
+#[derive(Deserialize, Clone, Default, Debug)]
 #[serde(rename_all = "kebab-case")]
 pub struct MemorySettings {
     #[serde(default)]
@@ -260,7 +260,7 @@ pub struct MemorySettings {
     pub enabled: bool,
 }
 
-#[derive(Deserialize, Clone, Eq, PartialEq)]
+#[derive(Deserialize, Clone, Eq, PartialEq, Debug)]
 pub enum MemoryTypes {
     #[serde(rename = "cached")]
     Cached,
@@ -272,7 +272,7 @@ pub enum MemoryTypes {
     Available,
 }
 
-#[derive(Deserialize, Clone, Default)]
+#[derive(Deserialize, Clone, Default, Debug)]
 #[serde(rename_all = "kebab-case")]
 pub struct LoadSettings {
     #[serde(default)]
@@ -286,7 +286,7 @@ pub struct LoadSettings {
     pub enabled: bool,
 }
 
-#[derive(Deserialize, Clone, Eq, PartialEq)]
+#[derive(Deserialize, Clone, Eq, PartialEq, Debug)]
 pub enum LoadTypes {
     #[serde(rename = "load_1")]
     Load1,
@@ -296,7 +296,7 @@ pub enum LoadTypes {
     Load15,
 }
 
-#[derive(Deserialize, Clone, Default)]
+#[derive(Deserialize, Clone, Default, Debug)]
 #[serde(rename_all = "kebab-case")]
 pub struct AppCpuPercentageSettings {
     #[serde(default)]
@@ -308,7 +308,7 @@ pub struct AppCpuPercentageSettings {
     pub enabled: bool,
 }
 
-#[derive(Deserialize, Clone, Default)]
+#[derive(Deserialize, Clone, Default, Debug)]
 #[serde(rename_all = "kebab-case")]
 pub struct AppMemoryPercentageSettings {
     #[serde(default)]
@@ -320,7 +320,7 @@ pub struct AppMemoryPercentageSettings {
     pub enabled: bool,
 }
 
-#[derive(Deserialize, Clone, Default)]
+#[derive(Deserialize, Clone, Default, Debug)]
 #[serde(rename_all = "kebab-case")]
 pub struct AppRestartCountSettings {
     #[serde(default)]

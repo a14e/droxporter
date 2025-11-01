@@ -56,7 +56,7 @@ struct KeyManagerState {
 
 type Key = String;
 
-#[derive(PartialEq, Eq, Hash, Copy, Clone)]
+#[derive(PartialEq, Eq, Hash, Copy, Clone, Debug)]
 pub enum KeyType {
     Default,
     Droplets,
