@@ -1,7 +1,8 @@
-FROM rust:alpine3.17 AS build
+FROM rust:alpine3.22 AS build
 WORKDIR /usr/src/droxporter
 COPY . .
 RUN apk add --no-cache build-base
+RUN rustup update stable
 RUN cargo test --release
 RUN cargo build --release
 
