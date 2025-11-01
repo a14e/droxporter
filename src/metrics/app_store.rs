@@ -1,12 +1,12 @@
-use std::sync::Arc;
-use ahash::HashSet;
-use async_trait::async_trait;
-use parking_lot::RwLock;
-use prometheus::Opts;
 use crate::client::do_client::DigitalOceanClient;
 use crate::client::do_json_protocol::AppResponse;
 use crate::config::config_model::{AppMetricsTypes, AppSettings};
 use crate::metrics::utils;
+use ahash::HashSet;
+use async_trait::async_trait;
+use parking_lot::RwLock;
+use prometheus::Opts;
+use std::sync::Arc;
 
 #[async_trait]
 pub trait AppStore: Send + Sync {
@@ -46,9 +46,11 @@ pub struct AppStoreImpl {
 }
 
 impl AppStoreImpl {
-    pub fn new(client: Arc<dyn DigitalOceanClient>,
-               configs: &'static AppSettings,
-               registry: prometheus::Registry) -> anyhow::Result<Self> {
+    pub fn new(
+        client: Arc<dyn DigitalOceanClient>,
+        configs: &'static AppSettings,
+        registry: prometheus::Registry,
+    ) -> anyhow::Result<Self> {
         let result = Self {
             store: Arc::new(RwLock::new(vec![])),
             client,
@@ -58,7 +60,6 @@ impl AppStoreImpl {
         Ok(result)
     }
 }
-
 
 #[derive(Clone)]
 struct AppMetrics {
@@ -74,21 +75,16 @@ impl AppMetrics {
 
         registry.register(Box::new(active_gauge.clone()))?;
 
-        let result = Self {
-            active_gauge,
-        };
+        let result = Self { active_gauge };
         Ok(result)
     }
 }
 
-
 impl AppStoreImpl {
-    fn save_apps(&self,
-                 apps: Vec<BasicAppInfo>) {
+    fn save_apps(&self, apps: Vec<BasicAppInfo>) {
         *self.store.write() = apps;
     }
 }
-
 
 #[async_trait]
 impl AppStore for AppStoreImpl {
@@ -108,22 +104,29 @@ impl AppStore for AppStoreImpl {
     }
 
     fn record_app_metrics(&self) {
-        let enabled_active_deployment_phase = self.configs.apps.metrics.contains(&AppMetricsTypes::ActiveDeploymentPhase);
+        let enabled_active_deployment_phase = self
+            .configs
+            .apps
+            .metrics
+            .contains(&AppMetricsTypes::ActiveDeploymentPhase);
 
         for app in self.store.read().iter() {
             if enabled_active_deployment_phase {
-                self.metrics.active_gauge
+                self.metrics
+                    .active_gauge
                     .with(&std::collections::HashMap::from([
                         ("app", app.name.as_ref()),
-                        ("active_deployment_phase", app.active_deployment_phase.as_ref()),
-                    ])).set(1 as f64);
+                        (
+                            "active_deployment_phase",
+                            app.active_deployment_phase.as_ref(),
+                        ),
+                    ]))
+                    .set(1_f64);
             }
         }
 
         let lock = self.store.read();
-        let apps: HashSet<_> = {
-            lock.iter().map(|x| x.name.as_str()).collect()
-        };
+        let apps: HashSet<_> = { lock.iter().map(|x| x.name.as_str()).collect() };
 
         // to prevent phantom apps
         utils::remove_old_apps_for_gauge_metric(&self.metrics.active_gauge, &apps);
@@ -133,5 +136,3 @@ impl AppStore for AppStoreImpl {
         self.store.read().clone()
     }
 }
-
-

@@ -1,82 +1,87 @@
-use std::sync::Arc;
-use std::time::Instant;
+use crate::client::do_json_protocol::{
+    DropletDataResponse, ListAppsResponse, ListDropletsResponse,
+};
+use crate::client::key_manager::{KeyManager, KeyType};
+use crate::config::config_model::{AgentMetricsType, AppSettings};
+use crate::metrics::utils::DROXPORTER_DEFAULT_BUCKETS;
 use async_trait::async_trait;
 use chrono::Utc;
 use prometheus::{HistogramOpts, Opts, Registry};
 use reqwest::StatusCode;
+use std::sync::Arc;
+use std::time::Instant;
 use url::Url;
-use crate::client::do_json_protocol::{DropletDataResponse, ListDropletsResponse, ListAppsResponse};
-use crate::client::key_manager::{KeyManager, KeyType};
-use crate::config::config_model::{AgentMetricsType, AppSettings};
-use crate::metrics::utils::DROXPORTER_DEFAULT_BUCKETS;
 
 use super::do_json_protocol::AppDataResponse;
 
 #[async_trait]
 pub trait DigitalOceanClient: Send + Sync {
-    async fn list_droplets(&self,
-                           per_page: u64,
-                           page: u64) -> anyhow::Result<ListDropletsResponse>;
+    async fn list_droplets(&self, per_page: u64, page: u64)
+        -> anyhow::Result<ListDropletsResponse>;
 
+    async fn list_apps(&self, per_page: u64, page: u64) -> anyhow::Result<ListAppsResponse>;
 
-    async fn list_apps(&self,
-                       per_page: u64,
-                       page: u64) -> anyhow::Result<ListAppsResponse>;
+    async fn get_droplet_bandwidth(
+        &self,
+        host_id: u64,
+        interface: NetworkInterface,
+        direction: NetworkDirection,
+        start: chrono::DateTime<Utc>,
+        end: chrono::DateTime<Utc>,
+    ) -> anyhow::Result<DropletDataResponse>;
 
+    async fn get_droplet_cpu(
+        &self,
+        host_id: u64,
+        start: chrono::DateTime<Utc>,
+        end: chrono::DateTime<Utc>,
+    ) -> anyhow::Result<DropletDataResponse>;
 
-    async fn get_droplet_bandwidth(&self,
-                                   host_id: u64,
-                                   interface: NetworkInterface,
-                                   direction: NetworkDirection,
-                                   start: chrono::DateTime<Utc>,
-                                   end: chrono::DateTime<Utc>) -> anyhow::Result<DropletDataResponse>;
+    async fn get_droplet_file_system(
+        &self,
+        host_id: u64,
+        metric_type: FileSystemRequest,
+        start: chrono::DateTime<Utc>,
+        end: chrono::DateTime<Utc>,
+    ) -> anyhow::Result<DropletDataResponse>;
 
+    async fn get_droplet_memory(
+        &self,
+        host_id: u64,
+        metric_type: MemoryRequest,
+        start: chrono::DateTime<Utc>,
+        end: chrono::DateTime<Utc>,
+    ) -> anyhow::Result<DropletDataResponse>;
 
-    async fn get_droplet_cpu(&self,
-                             host_id: u64,
-                             start: chrono::DateTime<Utc>,
-                             end: chrono::DateTime<Utc>) -> anyhow::Result<DropletDataResponse>;
+    async fn get_droplet_load(
+        &self,
+        host_id: u64,
+        load_type: ClientLoadType,
+        start: chrono::DateTime<Utc>,
+        end: chrono::DateTime<Utc>,
+    ) -> anyhow::Result<DropletDataResponse>;
 
+    async fn get_app_cpu_percentage(
+        &self,
+        app_id: String,
+        start: chrono::DateTime<Utc>,
+        end: chrono::DateTime<Utc>,
+    ) -> anyhow::Result<AppDataResponse>;
 
-    async fn get_droplet_file_system(&self,
-                             host_id: u64,
-                             metric_type: FileSystemRequest,
-                             start: chrono::DateTime<Utc>,
-                             end: chrono::DateTime<Utc>) -> anyhow::Result<DropletDataResponse>;
+    async fn get_app_memory_percentage(
+        &self,
+        app_id: String,
+        start: chrono::DateTime<Utc>,
+        end: chrono::DateTime<Utc>,
+    ) -> anyhow::Result<AppDataResponse>;
 
-
-    async fn get_droplet_memory(&self,
-                                host_id: u64,
-                                metric_type: MemoryRequest,
-                                start: chrono::DateTime<Utc>,
-                                end: chrono::DateTime<Utc>) -> anyhow::Result<DropletDataResponse>;
-
-
-    async fn get_droplet_load(&self,
-                              host_id: u64,
-                              load_type: ClientLoadType,
-                              start: chrono::DateTime<Utc>,
-                              end: chrono::DateTime<Utc>) -> anyhow::Result<DropletDataResponse>;
-
-
-    async fn get_app_cpu_percentage(&self,
-                                    app_id: String,
-                                    start: chrono::DateTime<Utc>,
-                                    end: chrono::DateTime<Utc>) -> anyhow::Result<AppDataResponse>;
-
-
-    async fn get_app_memory_percentage(&self,
-                                       app_id: String,
-                                       start: chrono::DateTime<Utc>,
-                                       end: chrono::DateTime<Utc>) -> anyhow::Result<AppDataResponse>;
-
-
-    async fn get_app_restart_count(&self,
-                                   app_id: String,
-                                   start: chrono::DateTime<Utc>,
-                                   end: chrono::DateTime<Utc>) -> anyhow::Result<AppDataResponse>;
+    async fn get_app_restart_count(
+        &self,
+        app_id: String,
+        start: chrono::DateTime<Utc>,
+        end: chrono::DateTime<Utc>,
+    ) -> anyhow::Result<AppDataResponse>;
 }
-
 
 #[derive(Eq, PartialEq, Copy, Clone)]
 pub enum NetworkDirection {
@@ -97,7 +102,6 @@ pub enum ClientLoadType {
     Load15,
 }
 
-
 #[derive(Clone)]
 pub struct DigitalOceanClientImpl {
     config: &'static AppSettings,
@@ -106,12 +110,13 @@ pub struct DigitalOceanClientImpl {
     metrics: DigitalOceanClientMetrics,
 }
 
-
 impl DigitalOceanClientImpl {
-    pub fn new(config: &'static AppSettings,
-               client: reqwest::Client,
-               token_manager: Arc<dyn KeyManager>,
-               registry: Registry) -> anyhow::Result<Self> {
+    pub fn new(
+        config: &'static AppSettings,
+        client: reqwest::Client,
+        token_manager: Arc<dyn KeyManager>,
+        registry: Registry,
+    ) -> anyhow::Result<Self> {
         let result = Self {
             config,
             client,
@@ -130,15 +135,20 @@ struct DigitalOceanClientMetrics {
 }
 
 impl DigitalOceanClientMetrics {
-    fn new(config: &'static AppSettings,
-           registry: Registry) -> anyhow::Result<Self> {
+    fn new(config: &'static AppSettings, registry: Registry) -> anyhow::Result<Self> {
         let requests_counter = prometheus::CounterVec::new(
-            Opts::new("droxporter_digital_ocean_request_counter", "Counter of droxporter http request"),
+            Opts::new(
+                "droxporter_digital_ocean_request_counter",
+                "Counter of droxporter http request",
+            ),
             &["type", "result"],
         )?;
         let request_histogram = prometheus::HistogramVec::new(
-            HistogramOpts::new("droxporter_digital_ocean_request_histogram_seconds", "Time of droxporter http request")
-                .buckets((*DROXPORTER_DEFAULT_BUCKETS).into()),
+            HistogramOpts::new(
+                "droxporter_digital_ocean_request_histogram_seconds",
+                "Time of droxporter http request",
+            )
+            .buckets((*DROXPORTER_DEFAULT_BUCKETS).into()),
             &["type", "result"],
         )?;
         registry.register(Box::new(requests_counter.clone()))?;
@@ -153,14 +163,14 @@ impl DigitalOceanClientMetrics {
 
     fn is_enabled(&self) -> bool {
         self.config.exporter_metrics.enabled && {
-            self.config.exporter_metrics.metrics.contains(&AgentMetricsType::Requests)
+            self.config
+                .exporter_metrics
+                .metrics
+                .contains(&AgentMetricsType::Requests)
         }
     }
 
-    fn record_client_metrics(&self,
-                             request: &str,
-                             response_code: &str,
-                             start_time: Instant) {
+    fn record_client_metrics(&self, request: &str, response_code: &str, start_time: Instant) {
         if !self.is_enabled() {
             return;
         }
@@ -176,13 +186,14 @@ impl DigitalOceanClientMetrics {
     }
 }
 
-
 impl DigitalOceanClientImpl {
-    async fn base_droplet_metrics_request(&self,
-                                          request_type: RequestType,
-                                          host_id: u64,
-                                          start: chrono::DateTime<Utc>,
-                                          end: chrono::DateTime<Utc>) -> anyhow::Result<DropletDataResponse> {
+    async fn base_droplet_metrics_request(
+        &self,
+        request_type: RequestType,
+        host_id: u64,
+        start: chrono::DateTime<Utc>,
+        end: chrono::DateTime<Utc>,
+    ) -> anyhow::Result<DropletDataResponse> {
         let suffix = request_type.to_request_suffix()?;
         let mut url = {
             let base = self.config.droplet_metrics.base_url.as_str();
@@ -195,17 +206,13 @@ impl DigitalOceanClientImpl {
             .append_pair("start", start.timestamp().to_string().as_str())
             .append_pair("end", end.timestamp().to_string().as_str());
 
-
         let bearer = self.token_manager.acquire_key(request_type.into())?;
         let time = Instant::now();
 
-        let response = self.client
-            .get(url)
-            .bearer_auth(bearer)
-            .send()
-            .await?;
+        let response = self.client.get(url).bearer_auth(bearer).send().await?;
 
-        self.metrics.record_client_metrics(suffix, response.status().as_str(), time);
+        self.metrics
+            .record_client_metrics(suffix, response.status().as_str(), time);
 
         if response.status() != StatusCode::OK && response.status() != StatusCode::NO_CONTENT {
             let status = response.status();
@@ -216,15 +223,16 @@ impl DigitalOceanClientImpl {
 
         let res = response.json::<DropletDataResponse>().await?;
 
-
         Ok(res)
     }
 
-    async fn base_app_metrics_request(&self,
-                                      request_type: RequestType,
-                                      app_id: String,
-                                      start: chrono::DateTime<Utc>,
-                                      end: chrono::DateTime<Utc>) -> anyhow::Result<AppDataResponse> {
+    async fn base_app_metrics_request(
+        &self,
+        request_type: RequestType,
+        app_id: String,
+        start: chrono::DateTime<Utc>,
+        end: chrono::DateTime<Utc>,
+    ) -> anyhow::Result<AppDataResponse> {
         let suffix = request_type.to_request_suffix()?;
         let mut url = {
             let base = self.config.app_metrics.base_url.as_str();
@@ -240,13 +248,10 @@ impl DigitalOceanClientImpl {
         let bearer = self.token_manager.acquire_key(request_type.into())?;
         let time = Instant::now();
 
-        let response = self.client
-            .get(url)
-            .bearer_auth(bearer)
-            .send()
-            .await?;
+        let response = self.client.get(url).bearer_auth(bearer).send().await?;
 
-        self.metrics.record_client_metrics(suffix, response.status().as_str(), time);
+        self.metrics
+            .record_client_metrics(suffix, response.status().as_str(), time);
 
         if response.status() != StatusCode::OK && response.status() != StatusCode::NO_CONTENT {
             let status = response.status();
@@ -257,11 +262,9 @@ impl DigitalOceanClientImpl {
 
         let res = response.json::<AppDataResponse>().await?;
 
-
         Ok(res)
     }
 }
-
 
 #[derive(PartialEq, Eq, Hash, Copy, Clone)]
 pub enum RequestType {
@@ -291,12 +294,11 @@ pub enum FileSystemRequest {
 
 #[derive(Clone, Copy)]
 pub enum MemoryRequest {
-    CachedMemory,
-    FreeMemory,
-    TotalMemory,
-    AvailableTotalMemory,
+    Cached,
+    Free,
+    Total,
+    AvailableTotal,
 }
-
 
 impl RequestType {
     pub fn to_request_suffix(self) -> anyhow::Result<&'static str> {
@@ -315,14 +317,14 @@ impl RequestType {
             RequestType::AppCpuPercentage => Ok("cpu_percentage"),
             RequestType::AppMemoryPercentage => Ok("memory_percentage"),
             RequestType::AppRestartCount => Ok("restart_count"),
-            _ => anyhow::bail!("Unexpected key type")
+            _ => anyhow::bail!("Unexpected key type"),
         }
     }
 }
 
-impl Into<KeyType> for RequestType {
-    fn into(self) -> KeyType {
-        match self {
+impl From<RequestType> for KeyType {
+    fn from(val: RequestType) -> Self {
+        match val {
             RequestType::Droplets => KeyType::Droplets,
             RequestType::Apps => KeyType::Apps,
             RequestType::DropletBandwidth => KeyType::DropletBandwidth,
@@ -345,23 +347,24 @@ impl Into<KeyType> for RequestType {
 
 #[async_trait]
 impl DigitalOceanClient for DigitalOceanClientImpl {
-    async fn list_droplets(&self,
-                           per_page: u64,
-                           page: u64) -> anyhow::Result<ListDropletsResponse> {
+    async fn list_droplets(
+        &self,
+        per_page: u64,
+        page: u64,
+    ) -> anyhow::Result<ListDropletsResponse> {
         let mut url = Url::parse(self.config.droplets.url.as_str())?;
         url.query_pairs_mut()
             .append_pair("per_page", per_page.to_string().as_str())
             .append_pair("page", page.to_string().as_str());
 
-        let bearer = self.token_manager.acquire_key(RequestType::Droplets.into())?;
+        let bearer = self
+            .token_manager
+            .acquire_key(RequestType::Droplets.into())?;
         let time = Instant::now();
 
-        let response = self.client
-            .get(url)
-            .bearer_auth(bearer)
-            .send()
-            .await?;
-        self.metrics.record_client_metrics("list_droplets", response.status().as_str(), time);
+        let response = self.client.get(url).bearer_auth(bearer).send().await?;
+        self.metrics
+            .record_client_metrics("list_droplets", response.status().as_str(), time);
 
         if response.status() != StatusCode::OK && response.status() != StatusCode::NO_CONTENT {
             let status = response.status();
@@ -370,16 +373,12 @@ impl DigitalOceanClient for DigitalOceanClientImpl {
             return Err(anyhow::Error::msg(err));
         }
 
-        let res = response.json::<ListDropletsResponse>()
-            .await?;
-
+        let res = response.json::<ListDropletsResponse>().await?;
 
         Ok(res)
     }
 
-    async fn list_apps(&self,
-                       per_page: u64,
-                       page: u64) -> anyhow::Result<ListAppsResponse> {
+    async fn list_apps(&self, per_page: u64, page: u64) -> anyhow::Result<ListAppsResponse> {
         let mut url = Url::parse(self.config.apps.url.as_str())?;
         url.query_pairs_mut()
             .append_pair("per_page", per_page.to_string().as_str())
@@ -388,12 +387,9 @@ impl DigitalOceanClient for DigitalOceanClientImpl {
         let bearer = self.token_manager.acquire_key(RequestType::Apps.into())?;
         let time = Instant::now();
 
-        let response = self.client
-            .get(url)
-            .bearer_auth(bearer)
-            .send()
-            .await?;
-        self.metrics.record_client_metrics("list_apps", response.status().as_str(), time);
+        let response = self.client.get(url).bearer_auth(bearer).send().await?;
+        self.metrics
+            .record_client_metrics("list_apps", response.status().as_str(), time);
 
         if response.status() != StatusCode::OK && response.status() != StatusCode::NO_CONTENT {
             let status = response.status();
@@ -402,27 +398,35 @@ impl DigitalOceanClient for DigitalOceanClientImpl {
             return Err(anyhow::Error::msg(err));
         }
 
-        let res = response.json::<ListAppsResponse>()
-            .await?;
-
+        let res = response.json::<ListAppsResponse>().await?;
 
         Ok(res)
     }
 
-    async fn get_droplet_bandwidth(&self,
-                                   host_id: u64,
-                                   interface: NetworkInterface,
-                                   direction: NetworkDirection,
-                                   start: chrono::DateTime<Utc>,
-                                   end: chrono::DateTime<Utc>) -> anyhow::Result<DropletDataResponse> {
+    async fn get_droplet_bandwidth(
+        &self,
+        host_id: u64,
+        interface: NetworkInterface,
+        direction: NetworkDirection,
+        start: chrono::DateTime<Utc>,
+        end: chrono::DateTime<Utc>,
+    ) -> anyhow::Result<DropletDataResponse> {
         let mut url = {
             let base = self.config.droplet_metrics.base_url.as_str();
             let str = format!("{base}/bandwidth"); // or path_segments_mut?
             Url::parse(str.as_str())?
         };
 
-        let interface = if interface == NetworkInterface::Private { "private" } else { "public" };
-        let direction = if direction == NetworkDirection::Inbound { "inbound" } else { "outbound" };
+        let interface = if interface == NetworkInterface::Private {
+            "private"
+        } else {
+            "public"
+        };
+        let direction = if direction == NetworkDirection::Inbound {
+            "inbound"
+        } else {
+            "outbound"
+        };
 
         url.query_pairs_mut()
             .append_pair("host_id", host_id.to_string().as_str())
@@ -431,16 +435,15 @@ impl DigitalOceanClient for DigitalOceanClientImpl {
             .append_pair("start", start.timestamp().to_string().as_str())
             .append_pair("end", end.timestamp().to_string().as_str());
 
-        let bearer = self.token_manager.acquire_key(RequestType::DropletBandwidth.into())?;
+        let bearer = self
+            .token_manager
+            .acquire_key(RequestType::DropletBandwidth.into())?;
         let time = Instant::now();
 
-        let response = self.client
-            .get(url)
-            .bearer_auth(bearer)
-            .send()
-            .await?;
+        let response = self.client.get(url).bearer_auth(bearer).send().await?;
 
-        self.metrics.record_client_metrics("bandwidth", response.status().as_str(), time);
+        self.metrics
+            .record_client_metrics("bandwidth", response.status().as_str(), time);
 
         if response.status() != StatusCode::OK && response.status() != StatusCode::NO_CONTENT {
             let status = response.status();
@@ -454,112 +457,93 @@ impl DigitalOceanClient for DigitalOceanClientImpl {
         Ok(res)
     }
 
-    async fn get_droplet_cpu(&self,
-                             host_id: u64,
-                             start: chrono::DateTime<Utc>,
-                             end: chrono::DateTime<Utc>) -> anyhow::Result<DropletDataResponse> {
-        self.base_droplet_metrics_request(
-            RequestType::DropletCpu,
-            host_id,
-            start,
-            end,
-        ).await
+    async fn get_droplet_cpu(
+        &self,
+        host_id: u64,
+        start: chrono::DateTime<Utc>,
+        end: chrono::DateTime<Utc>,
+    ) -> anyhow::Result<DropletDataResponse> {
+        self.base_droplet_metrics_request(RequestType::DropletCpu, host_id, start, end)
+            .await
     }
 
-    async fn get_droplet_file_system(&self,
-                                     host_id: u64,
-                                     request: FileSystemRequest,
-                                     start: chrono::DateTime<Utc>,
-                                     end: chrono::DateTime<Utc>) -> anyhow::Result<DropletDataResponse> {
+    async fn get_droplet_file_system(
+        &self,
+        host_id: u64,
+        request: FileSystemRequest,
+        start: chrono::DateTime<Utc>,
+        end: chrono::DateTime<Utc>,
+    ) -> anyhow::Result<DropletDataResponse> {
         let request = match request {
             FileSystemRequest::Free => RequestType::DropletFileSystemFree,
-            FileSystemRequest::Size => RequestType::DropletFileSystemSize
+            FileSystemRequest::Size => RequestType::DropletFileSystemSize,
         };
-        self.base_droplet_metrics_request(
-            request,
-            host_id,
-            start,
-            end,
-        ).await
+        self.base_droplet_metrics_request(request, host_id, start, end)
+            .await
     }
 
-
-    async fn get_droplet_memory(&self,
-                                host_id: u64,
-                                metric_type: MemoryRequest,
-                                start: chrono::DateTime<Utc>,
-                                end: chrono::DateTime<Utc>) -> anyhow::Result<DropletDataResponse> {
+    async fn get_droplet_memory(
+        &self,
+        host_id: u64,
+        metric_type: MemoryRequest,
+        start: chrono::DateTime<Utc>,
+        end: chrono::DateTime<Utc>,
+    ) -> anyhow::Result<DropletDataResponse> {
         let request_type = match metric_type {
-            MemoryRequest::CachedMemory => RequestType::DropletCachedMemory,
-            MemoryRequest::FreeMemory => RequestType::DropletFreeMemory,
-            MemoryRequest::TotalMemory => RequestType::DropletTotalMemory,
-            MemoryRequest::AvailableTotalMemory => RequestType::DropletAvailableTotalMemory,
+            MemoryRequest::Cached => RequestType::DropletCachedMemory,
+            MemoryRequest::Free => RequestType::DropletFreeMemory,
+            MemoryRequest::Total => RequestType::DropletTotalMemory,
+            MemoryRequest::AvailableTotal => RequestType::DropletAvailableTotalMemory,
         };
 
-        self.base_droplet_metrics_request(
-            request_type,
-            host_id,
-            start,
-            end,
-        ).await
+        self.base_droplet_metrics_request(request_type, host_id, start, end)
+            .await
     }
 
-
-    async fn get_droplet_load(&self,
-                              host_id: u64,
-                              load_type: ClientLoadType,
-                              start: chrono::DateTime<Utc>,
-                              end: chrono::DateTime<Utc>) -> anyhow::Result<DropletDataResponse> {
+    async fn get_droplet_load(
+        &self,
+        host_id: u64,
+        load_type: ClientLoadType,
+        start: chrono::DateTime<Utc>,
+        end: chrono::DateTime<Utc>,
+    ) -> anyhow::Result<DropletDataResponse> {
         let request_type = match load_type {
             ClientLoadType::Load1 => RequestType::DropletLoad1,
             ClientLoadType::Load5 => RequestType::DropletLoad5,
             ClientLoadType::Load15 => RequestType::DropletLoad15,
         };
 
-        self.base_droplet_metrics_request(
-            request_type,
-            host_id,
-            start,
-            end,
-        ).await
+        self.base_droplet_metrics_request(request_type, host_id, start, end)
+            .await
     }
 
-
-    async fn get_app_cpu_percentage(&self,
-                                    app_id: String,
-                                    start: chrono::DateTime<Utc>,
-                                    end: chrono::DateTime<Utc>) -> anyhow::Result<AppDataResponse> {
-        self.base_app_metrics_request(
-            RequestType::AppCpuPercentage,
-            app_id,
-            start,
-            end,
-        ).await
+    async fn get_app_cpu_percentage(
+        &self,
+        app_id: String,
+        start: chrono::DateTime<Utc>,
+        end: chrono::DateTime<Utc>,
+    ) -> anyhow::Result<AppDataResponse> {
+        self.base_app_metrics_request(RequestType::AppCpuPercentage, app_id, start, end)
+            .await
     }
 
-
-    async fn get_app_memory_percentage(&self,
-                                       app_id: String,
-                                       start: chrono::DateTime<Utc>,
-                                       end: chrono::DateTime<Utc>) -> anyhow::Result<AppDataResponse> {
-        self.base_app_metrics_request(
-            RequestType::AppMemoryPercentage,
-            app_id,
-            start,
-            end,
-        ).await
+    async fn get_app_memory_percentage(
+        &self,
+        app_id: String,
+        start: chrono::DateTime<Utc>,
+        end: chrono::DateTime<Utc>,
+    ) -> anyhow::Result<AppDataResponse> {
+        self.base_app_metrics_request(RequestType::AppMemoryPercentage, app_id, start, end)
+            .await
     }
 
-
-    async fn get_app_restart_count(&self,
-                                   app_id: String,
-                                   start: chrono::DateTime<Utc>,
-                                   end: chrono::DateTime<Utc>) -> anyhow::Result<AppDataResponse> {
-        self.base_app_metrics_request(
-            RequestType::AppRestartCount,
-            app_id,
-            start,
-            end,
-        ).await
+    async fn get_app_restart_count(
+        &self,
+        app_id: String,
+        start: chrono::DateTime<Utc>,
+        end: chrono::DateTime<Utc>,
+    ) -> anyhow::Result<AppDataResponse> {
+        self.base_app_metrics_request(RequestType::AppRestartCount, app_id, start, end)
+            .await
     }
 }

@@ -1,5 +1,5 @@
-use std::collections::HashMap;
 use serde::Deserialize;
+use std::collections::HashMap;
 
 pub type Key = String;
 
@@ -21,7 +21,7 @@ pub struct AppSettings {
     #[serde(default)]
     pub endpoint: EndpointConfig,
     #[serde(default)]
-    pub custom: CustomSettings
+    pub custom: CustomSettings,
 }
 
 #[derive(Deserialize, Clone, Default)]
@@ -89,7 +89,6 @@ fn default_ssl_cert() -> String {
 fn default_ssl_key() -> String {
     "./key.pem".into()
 }
-
 
 #[derive(Deserialize, Clone, Default)]
 #[serde(rename_all = "kebab-case")]

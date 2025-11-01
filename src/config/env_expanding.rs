@@ -1,5 +1,5 @@
-use std::env;
 use regex::{Captures, Regex};
+use std::env;
 use tracing::{error, info};
 
 pub fn expand_env_var(raw_config: &str) -> anyhow::Result<String> {
@@ -20,7 +20,7 @@ pub fn expand_env_var(raw_config: &str) -> anyhow::Result<String> {
     let mut err = Ok(());
     info!("Reading config file");
     info!("Expanding env variables");
-    let result = re.replace_all(&raw_config, |caps: &Captures| {
+    let result = re.replace_all(raw_config, |caps: &Captures| {
         let var = &caps[1];
         match env::var(var) {
             Ok(value) => {

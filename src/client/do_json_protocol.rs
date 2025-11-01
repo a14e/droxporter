@@ -1,6 +1,6 @@
-use std::fmt;
-use serde::Deserialize;
 use serde::de::{SeqAccess, Visitor};
+use serde::Deserialize;
+use std::fmt;
 
 #[derive(Deserialize, PartialEq, Debug)]
 pub struct ListDropletsResponse {
@@ -8,7 +8,6 @@ pub struct ListDropletsResponse {
     #[serde(default)]
     pub links: Links,
 }
-
 
 #[derive(Deserialize, PartialEq, Debug)]
 pub struct DropletResponse {
@@ -20,7 +19,6 @@ pub struct DropletResponse {
     pub locked: bool,
     pub status: String,
 }
-
 
 #[derive(Deserialize, PartialEq, Debug)]
 pub struct ListAppsResponse {
@@ -63,7 +61,6 @@ pub struct AppActiveDeployment {
     pub phase: String,
 }
 
-
 #[derive(Deserialize, PartialEq, Debug)]
 pub struct DropletDataResponse {
     pub status: String,
@@ -95,12 +92,12 @@ pub struct DropletMetricMetaInfo {
     // for filesystem_free / filesystem_size
     pub device: Option<String>,
     pub fstype: Option<String>,
-    pub mountpoint: Option<String>
+    pub mountpoint: Option<String>,
 }
 
 #[derive(Deserialize, PartialEq, Debug)]
 pub struct DropletMetricMetaDefault {
-    pub host_id: String
+    pub host_id: String,
 }
 
 #[derive(Deserialize, PartialEq, Debug)]
@@ -142,8 +139,8 @@ pub struct MetricPoint {
 }
 
 fn deserialize_points<'de, D>(deserializer: D) -> Result<Vec<MetricPoint>, D::Error>
-    where
-        D: serde::Deserializer<'de>,
+where
+    D: serde::Deserializer<'de>,
 {
     pub struct ValuesVisitor;
 
@@ -155,8 +152,8 @@ fn deserialize_points<'de, D>(deserializer: D) -> Result<Vec<MetricPoint>, D::Er
         }
 
         fn visit_seq<A>(self, mut seq: A) -> Result<Vec<MetricPoint>, A::Error>
-            where
-                A: SeqAccess<'de>,
+        where
+            A: SeqAccess<'de>,
         {
             let mut values = Vec::new();
 
@@ -171,10 +168,15 @@ fn deserialize_points<'de, D>(deserializer: D) -> Result<Vec<MetricPoint>, D::Er
     deserializer.deserialize_seq(ValuesVisitor)
 }
 
-
 #[cfg(test)]
+#[allow(clippy::needless_update)]
 mod deserialize_test {
-    use crate::client::do_json_protocol::{AppDataResponse, AppDataResult, AppMetricMetaInfo, AppMetricsResponse, AppResponse, AppSpec, AppActiveDeployment, DropletDataResponse, DropletDataResult, DropletMetricMetaInfo, DropletMetricsResponse, DropletResponse, ListAppsResponse, ListDropletsResponse, MetricPoint, Links, Pages};
+    use crate::client::do_json_protocol::{
+        AppActiveDeployment, AppDataResponse, AppDataResult, AppMetricMetaInfo, AppMetricsResponse,
+        AppResponse, AppSpec, DropletDataResponse, DropletDataResult, DropletMetricMetaInfo,
+        DropletMetricsResponse, DropletResponse, Links, ListAppsResponse, ListDropletsResponse,
+        MetricPoint, Pages,
+    };
 
     #[test]
     fn deserialize_droplets() {
@@ -183,24 +185,29 @@ mod deserialize_test {
         let expected_result = ListDropletsResponse {
             links: Links {
                 pages: Pages {
-                    first: Some("https://api.digitalocean.com/v2/droplets?page=1&per_page=1".to_string()),
-                    prev: Some("https://api.digitalocean.com/v2/droplets?page=1&per_page=1".to_string()),
-                    next: Some("https://api.digitalocean.com/v2/droplets?page=3&per_page=1".to_string()),
-                    last: Some("https://api.digitalocean.com/v2/droplets?page=3&per_page=1".to_string()),
+                    first: Some(
+                        "https://api.digitalocean.com/v2/droplets?page=1&per_page=1".to_string(),
+                    ),
+                    prev: Some(
+                        "https://api.digitalocean.com/v2/droplets?page=1&per_page=1".to_string(),
+                    ),
+                    next: Some(
+                        "https://api.digitalocean.com/v2/droplets?page=3&per_page=1".to_string(),
+                    ),
+                    last: Some(
+                        "https://api.digitalocean.com/v2/droplets?page=3&per_page=1".to_string(),
+                    ),
                 },
-                ..Default::default()
             },
-            droplets: vec![
-                DropletResponse {
-                    id: 336239184,
-                    name: "traefik-zitadel-1".to_string(),
-                    memory: 2048,
-                    vcpus: 1,
-                    disk: 50,
-                    locked: false,
-                    status: "active".to_string(),
-                }
-            ]
+            droplets: vec![DropletResponse {
+                id: 336239184,
+                name: "traefik-zitadel-1".to_string(),
+                memory: 2048,
+                vcpus: 1,
+                disk: 50,
+                locked: false,
+                status: "active".to_string(),
+            }],
         };
 
         assert_eq!(deserialized_data, expected_result)
@@ -214,25 +221,26 @@ mod deserialize_test {
         let expected_result = ListAppsResponse {
             links: Links {
                 pages: Pages {
-                    last: Some("https://api.digitalocean.com/v2/apps?page=11&per_page=1".to_string()),
-                    next: Some("https://api.digitalocean.com/v2/apps?page=2&per_page=1".to_string()),
+                    last: Some(
+                        "https://api.digitalocean.com/v2/apps?page=11&per_page=1".to_string(),
+                    ),
+                    next: Some(
+                        "https://api.digitalocean.com/v2/apps?page=2&per_page=1".to_string(),
+                    ),
                     ..Default::default()
                 },
-                ..Default::default()
             },
-            apps: vec![
-                AppResponse {
-                    id: "3a8aa5b2-3d92-4d0d-9d38-3214f08f3a57".to_string(),
-                    spec: AppSpec {
-                        name: "AppName".to_string(),
-                    },
-                    active_deployment: Some(AppActiveDeployment {
-                        id: "c079d423-e050-4a22-97cd-e9fbbbf020ad".to_string(),
-                        cause: "manual".to_string(),
-                        phase: "ACTIVE".to_string(),
-                    })
-                }
-            ]
+            apps: vec![AppResponse {
+                id: "3a8aa5b2-3d92-4d0d-9d38-3214f08f3a57".to_string(),
+                spec: AppSpec {
+                    name: "AppName".to_string(),
+                },
+                active_deployment: Some(AppActiveDeployment {
+                    id: "c079d423-e050-4a22-97cd-e9fbbbf020ad".to_string(),
+                    cause: "manual".to_string(),
+                    phase: "ACTIVE".to_string(),
+                }),
+            }],
         };
 
         assert_eq!(deserialized_data, expected_result)
@@ -245,13 +253,16 @@ mod deserialize_test {
         let expected_result = ListAppsResponse {
             links: Links {
                 pages: Pages {
-                    first: Some("https://api.digitalocean.com/v2/apps?page=1&per_page=100".to_string()),
-                    prev: Some("https://api.digitalocean.com/v2/apps?page=1&per_page=100".to_string()),
+                    first: Some(
+                        "https://api.digitalocean.com/v2/apps?page=1&per_page=100".to_string(),
+                    ),
+                    prev: Some(
+                        "https://api.digitalocean.com/v2/apps?page=1&per_page=100".to_string(),
+                    ),
                     ..Default::default()
                 },
-                ..Default::default()
             },
-            apps: vec![]
+            apps: vec![],
         };
 
         assert_eq!(deserialized_data, expected_result)
@@ -264,18 +275,22 @@ mod deserialize_test {
         let expected_result = DropletDataResponse {
             status: "success".into(),
             data: DropletDataResult {
-                result: vec![
-                    DropletMetricsResponse {
-                        metric: DropletMetricMetaInfo {
-                            host_id: "335943309".into(),
-                            ..Default::default()
+                result: vec![DropletMetricsResponse {
+                    metric: DropletMetricMetaInfo {
+                        host_id: "335943309".into(),
+                        ..Default::default()
+                    },
+                    values: vec![
+                        MetricPoint {
+                            timestamp: 1682246520,
+                            value: "0.00011012000000000001".into(),
                         },
-                        values: vec![
-                            MetricPoint { timestamp: 1682246520, value: "0.00011012000000000001".into() },
-                            MetricPoint { timestamp: 1682246760, value: "0.00025643564356435644".into() },
-                        ]
-                    }
-                ]
+                        MetricPoint {
+                            timestamp: 1682246760,
+                            value: "0.00025643564356435644".into(),
+                        },
+                    ],
+                }],
             },
         };
 
@@ -298,9 +313,10 @@ mod deserialize_test {
                             app_uuid: "671f8c90-25d4-42f5-8486-8ee23666baa6".into(),
                             ..Default::default()
                         },
-                        values: vec![
-                            MetricPoint { timestamp: 1726819500, value: "16.846847534179688".into() },
-                        ]
+                        values: vec![MetricPoint {
+                            timestamp: 1726819500,
+                            value: "16.846847534179688".into(),
+                        }],
                     },
                     AppMetricsResponse {
                         metric: AppMetricMetaInfo {
@@ -310,11 +326,12 @@ mod deserialize_test {
                             app_uuid: "671f8c90-25d4-42f5-8486-8ee23666baa6".into(),
                             ..Default::default()
                         },
-                        values: vec![
-                            MetricPoint { timestamp: 1726819500, value: "16.955947875976562".into() },
-                        ]
-                    }
-                ]
+                        values: vec![MetricPoint {
+                            timestamp: 1726819500,
+                            value: "16.955947875976562".into(),
+                        }],
+                    },
+                ],
             },
         };
 

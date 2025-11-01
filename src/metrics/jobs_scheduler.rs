@@ -1,10 +1,3 @@
-use std::sync::Arc;
-use std::time::Duration;
-use async_trait::async_trait;
-use chrono::{DateTime, Utc};
-use prometheus::{HistogramOpts, Opts, Registry};
-use tokio::time::Instant;
-use tracing::{error, info};
 use crate::config::config_model::{AgentMetricsType, AppSettings};
 use crate::metrics::agent_metrics::AgentMetricsService;
 use crate::metrics::app_metrics_loader::AppMetricsService;
@@ -12,6 +5,13 @@ use crate::metrics::app_store::AppStore;
 use crate::metrics::droplet_metrics_loader::DropletMetricsService;
 use crate::metrics::droplet_store::DropletStore;
 use crate::metrics::utils::DROXPORTER_DEFAULT_BUCKETS;
+use async_trait::async_trait;
+use chrono::{DateTime, Utc};
+use prometheus::{HistogramOpts, Opts, Registry};
+use std::sync::Arc;
+use std::time::Duration;
+use tokio::time::Instant;
+use tracing::{error, info};
 
 #[async_trait]
 pub trait MetricsScheduler: Send + Sync {
@@ -21,6 +21,7 @@ pub trait MetricsScheduler: Send + Sync {
     async fn run_cpu_metrics_loading(&self) -> anyhow::Result<()>;
     async fn run_filesystem_metrics_loading(&self) -> anyhow::Result<()>;
     async fn run_memory_metrics_loading(&self) -> anyhow::Result<()>;
+    #[allow(dead_code)]
     async fn run_load_metrics_loading(&self) -> anyhow::Result<()>;
     async fn run_agent_metrics_loading(&self) -> anyhow::Result<()>;
     async fn run_app_cpu_percentage_metrics_loading(&self) -> anyhow::Result<()>;
@@ -40,22 +41,26 @@ pub struct MetricsSchedulerImpl {
     jobs_histogram: prometheus::HistogramVec,
 }
 
-
 impl MetricsSchedulerImpl {
-    pub fn new(configs: &'static AppSettings,
-               droplet_store: Arc<dyn DropletStore>,
-               app_store: Arc<dyn AppStore>,
-               droplet_metrics_service: Arc<dyn DropletMetricsService>,
-               app_metrics_service: Arc<dyn AppMetricsService>,
-               agent_service: Arc<dyn AgentMetricsService>,
-               registry: Registry) -> anyhow::Result<Self> {
+    pub fn new(
+        configs: &'static AppSettings,
+        droplet_store: Arc<dyn DropletStore>,
+        app_store: Arc<dyn AppStore>,
+        droplet_metrics_service: Arc<dyn DropletMetricsService>,
+        app_metrics_service: Arc<dyn AppMetricsService>,
+        agent_service: Arc<dyn AgentMetricsService>,
+        registry: Registry,
+    ) -> anyhow::Result<Self> {
         let jobs_counter = prometheus::CounterVec::new(
             Opts::new("droxporter_jobs_counter", "Counter of droxporter jobs"),
             &["type", "result"],
         )?;
         let jobs_histogram = prometheus::HistogramVec::new(
-            HistogramOpts::new("droxporter_jobs_time_histogram_seconds", "Time of droxporter jobs")
-                .buckets((*DROXPORTER_DEFAULT_BUCKETS).into()),
+            HistogramOpts::new(
+                "droxporter_jobs_time_histogram_seconds",
+                "Time of droxporter jobs",
+            )
+            .buckets((*DROXPORTER_DEFAULT_BUCKETS).into()),
             &["type", "result"],
         )?;
         registry.register(Box::new(jobs_counter.clone()))?;
@@ -74,28 +79,22 @@ impl MetricsSchedulerImpl {
         Ok(result)
     }
 
-
     fn are_metrics_enabled(&self) -> bool {
         self.configs.exporter_metrics.enabled && {
-            self.configs.exporter_metrics.metrics.contains(&AgentMetricsType::Jobs)
+            self.configs
+                .exporter_metrics
+                .metrics
+                .contains(&AgentMetricsType::Jobs)
         }
     }
 
-
-    fn record_job_metrics(&self,
-                          job_name: &str,
-                          success: bool,
-                          start_time: Instant) {
+    fn record_job_metrics(&self, job_name: &str, success: bool, start_time: Instant) {
         if !self.are_metrics_enabled() {
             return;
         }
 
         let elasped_time_seconds = start_time.elapsed().as_millis() as f64 / 1000.0f64;
-        let result = if success {
-            "success"
-        } else {
-            "fail"
-        };
+        let result = if success { "success" } else { "fail" };
         self.jobs_histogram
             .with_label_values(&[job_name, result])
             .observe(elasped_time_seconds);
@@ -111,7 +110,6 @@ impl MetricsSchedulerImpl {
 impl MetricsScheduler for MetricsSchedulerImpl {
     async fn run_droplets_loading(&self) -> anyhow::Result<()> {
         info!("Starting droplets loading loop");
-
 
         let mut first = true;
         loop {
@@ -134,7 +132,6 @@ impl MetricsScheduler for MetricsSchedulerImpl {
 
     async fn run_apps_loading(&self) -> anyhow::Result<()> {
         info!("Starting apps loading loop");
-
 
         let mut first = true;
         loop {
@@ -168,7 +165,11 @@ impl MetricsScheduler for MetricsSchedulerImpl {
             let first_delay = Duration::from_secs(10).min(bandwidth.interval);
             let mut first = true;
             loop {
-                let timeout = if first { first_delay } else { bandwidth.interval };
+                let timeout = if first {
+                    first_delay
+                } else {
+                    bandwidth.interval
+                };
                 first = false;
                 tokio::time::sleep(timeout).await;
                 let start = Instant::now();
@@ -226,7 +227,11 @@ impl MetricsScheduler for MetricsSchedulerImpl {
             let first_delay = Duration::from_secs(10).min(filesystem.interval);
             let mut first = true;
             loop {
-                let timeout = if first { first_delay } else { filesystem.interval };
+                let timeout = if first {
+                    first_delay
+                } else {
+                    filesystem.interval
+                };
                 first = false;
                 tokio::time::sleep(timeout).await;
                 let start = Instant::now();
@@ -279,7 +284,6 @@ impl MetricsScheduler for MetricsSchedulerImpl {
             }
             info!("Starting load metrics loading loop");
 
-
             // timeout for initial load
             // looks ugly, but simple =)
             let first_delay = Duration::from_secs(10).min(load.interval);
@@ -313,7 +317,11 @@ impl MetricsScheduler for MetricsSchedulerImpl {
         let first_delay = Duration::from_secs(10).min(self.configs.exporter_metrics.interval);
         let mut first = true;
         loop {
-            let timeout = if first { first_delay } else { self.configs.exporter_metrics.interval };
+            let timeout = if first {
+                first_delay
+            } else {
+                self.configs.exporter_metrics.interval
+            };
             first = false;
             tokio::time::sleep(timeout).await;
 
@@ -338,7 +346,11 @@ impl MetricsScheduler for MetricsSchedulerImpl {
             let first_delay = Duration::from_secs(10).min(app_cpu_percentage.interval);
             let mut first = true;
             loop {
-                let timeout = if first { first_delay } else { app_cpu_percentage.interval };
+                let timeout = if first {
+                    first_delay
+                } else {
+                    app_cpu_percentage.interval
+                };
                 first = false;
                 tokio::time::sleep(timeout).await;
                 let start = Instant::now();
@@ -367,7 +379,11 @@ impl MetricsScheduler for MetricsSchedulerImpl {
             let first_delay = Duration::from_secs(10).min(app_memory_percentage.interval);
             let mut first = true;
             loop {
-                let timeout = if first { first_delay } else { app_memory_percentage.interval };
+                let timeout = if first {
+                    first_delay
+                } else {
+                    app_memory_percentage.interval
+                };
                 first = false;
                 tokio::time::sleep(timeout).await;
                 let start = Instant::now();
@@ -397,7 +413,11 @@ impl MetricsScheduler for MetricsSchedulerImpl {
             let mut first = true;
             let mut last_interval_end: Option<DateTime<Utc>> = None;
             loop {
-                let timeout = if first { first_delay } else { app_restart_count.interval };
+                let timeout = if first {
+                    first_delay
+                } else {
+                    app_restart_count.interval
+                };
                 first = false;
                 tokio::time::sleep(timeout).await;
                 let start = Instant::now();
@@ -409,7 +429,11 @@ impl MetricsScheduler for MetricsSchedulerImpl {
 
                 last_interval_end = Some(interval_end + Duration::from_secs(1));
 
-                if let Err(e) = self.app_metrics_service.load_restart_count(interval_start, interval_end).await {
+                if let Err(e) = self
+                    .app_metrics_service
+                    .load_restart_count(interval_start, interval_end)
+                    .await
+                {
                     error!("Apps app_restart_count metrics loading failed with err {e}");
                     self.record_job_metrics("app_restart_count", false, start);
                     continue;
@@ -420,14 +444,3 @@ impl MetricsScheduler for MetricsSchedulerImpl {
         Ok(())
     }
 }
-
-
-
-
-
-
-
-
-
-
-

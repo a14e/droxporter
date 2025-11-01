@@ -1,12 +1,12 @@
-use std::sync::Arc;
-use ahash::{HashSet};
-use async_trait::async_trait;
-use parking_lot::{RwLock};
-use prometheus::Opts;
 use crate::client::do_client::DigitalOceanClient;
 use crate::client::do_json_protocol::DropletResponse;
 use crate::config::config_model::{AppSettings, DropletMetricsTypes};
 use crate::metrics::utils;
+use ahash::HashSet;
+use async_trait::async_trait;
+use parking_lot::RwLock;
+use prometheus::Opts;
+use std::sync::Arc;
 
 #[async_trait]
 pub trait DropletStore: Send + Sync {
@@ -18,6 +18,7 @@ pub trait DropletStore: Send + Sync {
 }
 
 #[derive(Clone)]
+#[allow(dead_code)]
 pub struct BasicDropletInfo {
     pub id: u64,
     pub name: String,
@@ -51,9 +52,11 @@ pub struct DropletStoreImpl {
 }
 
 impl DropletStoreImpl {
-    pub fn new(client: Arc<dyn DigitalOceanClient>,
-               configs: &'static AppSettings,
-               registry: prometheus::Registry) -> anyhow::Result<Self> {
+    pub fn new(
+        client: Arc<dyn DigitalOceanClient>,
+        configs: &'static AppSettings,
+        registry: prometheus::Registry,
+    ) -> anyhow::Result<Self> {
         let result = Self {
             store: Arc::new(RwLock::new(vec![])),
             client,
@@ -63,7 +66,6 @@ impl DropletStoreImpl {
         Ok(result)
     }
 }
-
 
 #[derive(Clone)]
 struct DropletsMetrics {
@@ -76,15 +78,24 @@ struct DropletsMetrics {
 impl DropletsMetrics {
     fn new(registry: prometheus::Registry) -> anyhow::Result<Self> {
         let memory_gauge = prometheus::GaugeVec::new(
-            Opts::new("droxporter_droplet_memory_settings", "Memory settings of droplet"),
+            Opts::new(
+                "droxporter_droplet_memory_settings",
+                "Memory settings of droplet",
+            ),
             &["droplet"],
         )?;
         let vcpu_gauge = prometheus::GaugeVec::new(
-            Opts::new("droxporter_droplet_vcpu_settings", "Cpu settings of droplet"),
+            Opts::new(
+                "droxporter_droplet_vcpu_settings",
+                "Cpu settings of droplet",
+            ),
             &["droplet"],
         )?;
         let disk_gauge = prometheus::GaugeVec::new(
-            Opts::new("droxporter_droplet_disk_settings", "Disk settings of droplet"),
+            Opts::new(
+                "droxporter_droplet_disk_settings",
+                "Disk settings of droplet",
+            ),
             &["droplet"],
         )?;
         let status_gauge = prometheus::GaugeVec::new(
@@ -107,14 +118,11 @@ impl DropletsMetrics {
     }
 }
 
-
 impl DropletStoreImpl {
-    fn save_droplets(&self,
-                     droplets: Vec<BasicDropletInfo>) {
+    fn save_droplets(&self, droplets: Vec<BasicDropletInfo>) {
         *self.store.write() = droplets;
     }
 }
-
 
 #[async_trait]
 impl DropletStore for DropletStoreImpl {
@@ -134,47 +142,71 @@ impl DropletStore for DropletStoreImpl {
     }
 
     fn record_droplets_metrics(&self) {
-        let enabled_memory = self.configs.droplets.metrics.contains(&DropletMetricsTypes::Memory);
-        let enabled_vcpu = self.configs.droplets.metrics.contains(&DropletMetricsTypes::VCpu);
-        let enabled_disc = self.configs.droplets.metrics.contains(&DropletMetricsTypes::Disk);
-        let enabled_status = self.configs.droplets.metrics.contains(&DropletMetricsTypes::Status);
-
+        let enabled_memory = self
+            .configs
+            .droplets
+            .metrics
+            .contains(&DropletMetricsTypes::Memory);
+        let enabled_vcpu = self
+            .configs
+            .droplets
+            .metrics
+            .contains(&DropletMetricsTypes::VCpu);
+        let enabled_disc = self
+            .configs
+            .droplets
+            .metrics
+            .contains(&DropletMetricsTypes::Disk);
+        let enabled_status = self
+            .configs
+            .droplets
+            .metrics
+            .contains(&DropletMetricsTypes::Status);
 
         for droplet in self.store.read().iter() {
             let name = &droplet.name;
             if enabled_memory {
-                self.metrics.memory_gauge
-                    .with(&std::collections::HashMap::from([
-                        ("droplet", name.as_ref())
-                    ])).set(droplet.memory as f64);
+                self.metrics
+                    .memory_gauge
+                    .with(&std::collections::HashMap::from([(
+                        "droplet",
+                        name.as_ref(),
+                    )]))
+                    .set(droplet.memory as f64);
             }
 
             if enabled_vcpu {
-                self.metrics.vcpu_gauge
-                    .with(&std::collections::HashMap::from([
-                        ("droplet", name.as_ref())
-                    ])).set(droplet.vcpus as f64);
+                self.metrics
+                    .vcpu_gauge
+                    .with(&std::collections::HashMap::from([(
+                        "droplet",
+                        name.as_ref(),
+                    )]))
+                    .set(droplet.vcpus as f64);
             }
 
             if enabled_disc {
-                self.metrics.disk_gauge
-                    .with(&std::collections::HashMap::from([
-                        ("droplet", name.as_ref())
-                    ])).set(droplet.disk as f64);
+                self.metrics
+                    .disk_gauge
+                    .with(&std::collections::HashMap::from([(
+                        "droplet",
+                        name.as_ref(),
+                    )]))
+                    .set(droplet.disk as f64);
             }
 
             if enabled_status {
-                self.metrics.status_gauge
+                self.metrics
+                    .status_gauge
                     .with(&std::collections::HashMap::from([
                         ("droplet", name.as_ref()),
                         ("status", droplet.status.as_ref()),
-                    ])).set(1 as f64);
+                    ]))
+                    .set(1_f64);
             }
         }
         let lock = self.store.read();
-        let droplets: HashSet<_> = {
-            lock.iter().map(|x| x.name.as_str()).collect()
-        };
+        let droplets: HashSet<_> = { lock.iter().map(|x| x.name.as_str()).collect() };
 
         // to prevent phantom droplets
         utils::remove_old_droplets(&self.metrics.memory_gauge, &droplets);
@@ -187,5 +219,3 @@ impl DropletStore for DropletStoreImpl {
         self.store.read().clone()
     }
 }
-
-

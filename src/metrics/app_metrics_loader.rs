@@ -1,39 +1,41 @@
-use std::sync::Arc;
-use async_trait::async_trait;
-use chrono::{DateTime, Duration, Utc};
-use prometheus::Opts;
 use crate::client::do_client::DigitalOceanClient;
 use crate::client::do_json_protocol::{AppDataResponse, AppMetricMetaInfo, AppMetricsResponse};
 use crate::config::config_model::AppSettings;
 use crate::metrics::app_store::AppStore;
 use crate::metrics::utils;
+use async_trait::async_trait;
+use chrono::{DateTime, Duration, Utc};
+use prometheus::Opts;
+use std::sync::Arc;
 
 #[async_trait]
 pub trait AppMetricsService: Send + Sync {
     async fn load_cpu_percentage(&self) -> anyhow::Result<()>;
     async fn load_memory_percentage(&self) -> anyhow::Result<()>;
-    async fn load_restart_count(&self, interval_start: DateTime<Utc>, interval_end: DateTime<Utc>) -> anyhow::Result<()>;
+    async fn load_restart_count(
+        &self,
+        interval_start: DateTime<Utc>,
+        interval_end: DateTime<Utc>,
+    ) -> anyhow::Result<()>;
 }
-
 
 #[derive(Clone)]
 pub struct AppMetricsServiceImpl {
     client: Arc<dyn DigitalOceanClient>,
     app_store: Arc<dyn AppStore>,
-    // There are no valid per metric settings yet.
-    configs: &'static AppSettings,
     metrics: LoaderAppMetrics,
 }
 
 impl AppMetricsServiceImpl {
-    pub fn new(client: Arc<dyn DigitalOceanClient>,
-               app_store: Arc<dyn AppStore>,
-               configs: &'static AppSettings,
-               registry: prometheus::Registry) -> anyhow::Result<Self> {
+    pub fn new(
+        client: Arc<dyn DigitalOceanClient>,
+        app_store: Arc<dyn AppStore>,
+        _configs: &'static AppSettings,
+        registry: prometheus::Registry,
+    ) -> anyhow::Result<Self> {
         let result = Self {
             client,
             app_store,
-            configs,
             metrics: LoaderAppMetrics::new(registry)?,
         };
         Ok(result)
@@ -74,32 +76,44 @@ impl LoaderAppMetrics {
 }
 
 fn extract_app_meta_with_last_values(response: AppDataResponse) -> Vec<(AppMetricMetaInfo, f64)> {
-    response.data.result.into_iter()
+    response
+        .data
+        .result
+        .into_iter()
         .map(|x| {
             let last_point = last_point_for_app_metrics(&x);
             let info = x.metric;
             (info, last_point)
-        }).collect()
+        })
+        .collect()
 }
 
 fn extract_app_meta_with_sum_of_values(response: AppDataResponse) -> Vec<(AppMetricMetaInfo, f64)> {
-    response.data.result.into_iter()
+    response
+        .data
+        .result
+        .into_iter()
         .map(|x| {
             let sum = sum_for_app_metrics(&x);
             let info = x.metric;
             (info, sum)
-        }).collect()
+        })
+        .collect()
 }
 
 fn last_point_for_app_metrics(metrics: &AppMetricsResponse) -> f64 {
-    metrics.values.iter()
+    metrics
+        .values
+        .iter()
         .max_by_key(|x| x.timestamp)
         .and_then(|x| x.value.parse::<f64>().ok())
         .unwrap_or(0f64)
 }
 
 fn sum_for_app_metrics(metrics: &AppMetricsResponse) -> f64 {
-    metrics.values.iter()
+    metrics
+        .values
+        .iter()
         .map(|x| x.value.parse::<f64>().unwrap_or(0f64))
         .sum()
 }
@@ -117,27 +131,24 @@ impl AppMetricsService for AppMetricsServiceImpl {
         let interval_start = interval_end - metrics_read_interval();
 
         for app in self.app_store.list_apps().iter() {
-            let res = self.client
-                .get_app_cpu_percentage(
-                    app.id.clone(),
-                    interval_start,
-                    interval_end
-                ).await?;
+            let res = self
+                .client
+                .get_app_cpu_percentage(app.id.clone(), interval_start, interval_end)
+                .await?;
             for (meta, value) in extract_app_meta_with_last_values(res) {
-                self.metrics.app_cpu_percentage
-                .with_label_values(&[
-                        &app.name.as_str(),
-                        &meta.app_component.as_str(),
-                        &meta.app_component_instance.as_str(),
-                    ]).set(value);
+                self.metrics
+                    .app_cpu_percentage
+                    .with_label_values(&[
+                        app.name.as_str(),
+                        meta.app_component.as_str(),
+                        meta.app_component_instance.as_str(),
+                    ])
+                    .set(value);
             }
         }
 
         let apps = self.app_store.list_apps();
-        let apps_names: ahash::HashSet<_> = apps
-            .iter()
-            .map(|x| x.name.as_str())
-            .collect();
+        let apps_names: ahash::HashSet<_> = apps.iter().map(|x| x.name.as_str()).collect();
         utils::remove_old_apps_for_gauge_metric(&self.metrics.app_cpu_percentage, &apps_names);
 
         Ok(())
@@ -148,55 +159,53 @@ impl AppMetricsService for AppMetricsServiceImpl {
         let interval_start = interval_end - metrics_read_interval();
 
         for app in self.app_store.list_apps().iter() {
-            let res = self.client
-                .get_app_memory_percentage(
-                    app.id.clone(),
-                    interval_start,
-                    interval_end
-                ).await?;
+            let res = self
+                .client
+                .get_app_memory_percentage(app.id.clone(), interval_start, interval_end)
+                .await?;
             for (meta, value) in extract_app_meta_with_last_values(res) {
-                self.metrics.app_memory_percentage
-                .with_label_values(&[
-                        &app.name.as_str(),
-                        &meta.app_component.as_str(),
-                        &meta.app_component_instance.as_str(),
-                    ]).set(value);
+                self.metrics
+                    .app_memory_percentage
+                    .with_label_values(&[
+                        app.name.as_str(),
+                        meta.app_component.as_str(),
+                        meta.app_component_instance.as_str(),
+                    ])
+                    .set(value);
             }
         }
 
         let apps = self.app_store.list_apps();
-        let apps_names: ahash::HashSet<_> = apps
-            .iter()
-            .map(|x| x.name.as_str())
-            .collect();
+        let apps_names: ahash::HashSet<_> = apps.iter().map(|x| x.name.as_str()).collect();
         utils::remove_old_apps_for_gauge_metric(&self.metrics.app_memory_percentage, &apps_names);
 
         Ok(())
     }
 
-    async fn load_restart_count(&self, interval_start: DateTime<Utc>, interval_end: DateTime<Utc>) -> anyhow::Result<()> {
+    async fn load_restart_count(
+        &self,
+        interval_start: DateTime<Utc>,
+        interval_end: DateTime<Utc>,
+    ) -> anyhow::Result<()> {
         for app in self.app_store.list_apps().iter() {
-            let res = self.client
-                .get_app_restart_count(
-                    app.id.clone(),
-                    interval_start,
-                    interval_end
-                ).await?;
+            let res = self
+                .client
+                .get_app_restart_count(app.id.clone(), interval_start, interval_end)
+                .await?;
             for (meta, value) in extract_app_meta_with_sum_of_values(res) {
-                self.metrics.app_restart_count
-                .with_label_values(&[
-                        &app.name.as_str(),
-                        &meta.app_component.as_str(),
-                        &meta.app_component_instance.as_str(),
-                    ]).inc_by(value);
+                self.metrics
+                    .app_restart_count
+                    .with_label_values(&[
+                        app.name.as_str(),
+                        meta.app_component.as_str(),
+                        meta.app_component_instance.as_str(),
+                    ])
+                    .inc_by(value);
             }
         }
 
         let apps = self.app_store.list_apps();
-        let apps_names: ahash::HashSet<_> = apps
-            .iter()
-            .map(|x| x.name.as_str())
-            .collect();
+        let apps_names: ahash::HashSet<_> = apps.iter().map(|x| x.name.as_str()).collect();
         utils::remove_old_apps_for_counter_metric(&self.metrics.app_restart_count, &apps_names);
 
         Ok(())
