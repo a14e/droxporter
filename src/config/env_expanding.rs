@@ -69,19 +69,25 @@ mod tests {
     #[test]
     fn test_expand_existing_env_var() {
         let test_var = generate_test_var_name("TEST_VAR");
-        std::env::set_var(&test_var, "test_value");
+        unsafe {
+            std::env::set_var(&test_var, "test_value");
+        }
 
         let input = format!("port: ${{{}}}", test_var);
         let result = expand_env_var(&input).unwrap();
         assert_eq!(result, "port: test_value");
 
-        std::env::remove_var(&test_var);
+        unsafe {
+            std::env::remove_var(&test_var);
+        }
     }
 
     #[test]
     fn test_expand_nonexistent_var_with_default() {
         let nonexistent_var = generate_test_var_name("NONEXISTENT_VAR");
-        std::env::remove_var(&nonexistent_var);
+        unsafe {
+            std::env::remove_var(&nonexistent_var);
+        }
 
         let input = format!("port: ${{{}:8080}}", nonexistent_var);
         let result = expand_env_var(&input).unwrap();
@@ -91,7 +97,9 @@ mod tests {
     #[test]
     fn test_expand_nonexistent_var_without_default() {
         let nonexistent_var = generate_test_var_name("NONEXISTENT_VAR");
-        std::env::remove_var(&nonexistent_var);
+        unsafe {
+            std::env::remove_var(&nonexistent_var);
+        }
 
         let input = format!("port: ${{{}}}", nonexistent_var);
         let result = expand_env_var(&input);
@@ -103,8 +111,12 @@ mod tests {
     fn test_expand_multiple_vars() {
         let host_var = generate_test_var_name("HOST");
         let port_var = generate_test_var_name("PORT");
-        std::env::set_var(&host_var, "localhost");
-        std::env::set_var(&port_var, "3000");
+        unsafe {
+            std::env::set_var(&host_var, "localhost");
+        }
+        unsafe {
+            std::env::set_var(&port_var, "3000");
+        }
 
         let input = format!(
             "endpoint:\n  host: ${{{}}}\n  port: ${{{}}}",
@@ -113,15 +125,21 @@ mod tests {
         let result = expand_env_var(&input).unwrap();
         assert_eq!(result, "endpoint:\n  host: localhost\n  port: 3000");
 
-        std::env::remove_var(&host_var);
-        std::env::remove_var(&port_var);
+        unsafe {
+            std::env::remove_var(&host_var);
+        }
+        unsafe {
+            std::env::remove_var(&port_var);
+        }
     }
 
     #[test]
     fn test_expand_mixed_existing_and_nonexisting() {
         let existing_var = generate_test_var_name("EXISTING_VAR");
         let missing_var = generate_test_var_name("MISSING_VAR");
-        std::env::set_var(&existing_var, "exists");
+        unsafe {
+            std::env::set_var(&existing_var, "exists");
+        }
 
         let input = format!(
             "existing: ${{{}}}\nnonexisting: ${{{}:default}}",
@@ -130,13 +148,17 @@ mod tests {
         let result = expand_env_var(&input).unwrap();
         assert_eq!(result, "existing: exists\nnonexisting: default");
 
-        std::env::remove_var(&existing_var);
+        unsafe {
+            std::env::remove_var(&existing_var);
+        }
     }
 
     #[test]
     fn test_expand_empty_default() {
         let test_var = generate_test_var_name("TEST_VAR");
-        std::env::remove_var(&test_var);
+        unsafe {
+            std::env::remove_var(&test_var);
+        }
 
         let input = format!("value: ${{{}:}}", test_var);
         let result = expand_env_var(&input);
@@ -153,52 +175,76 @@ mod tests {
     #[test]
     fn test_expand_var_with_special_chars() {
         let special_var = generate_test_var_name("SPECIAL_VAR");
-        std::env::set_var(&special_var, "value-with-dashes_and_123");
+        unsafe {
+            std::env::set_var(&special_var, "value-with-dashes_and_123");
+        }
 
         let input = format!("special: ${{{}}}", special_var);
         let result = expand_env_var(&input).unwrap();
         assert_eq!(result, "special: value-with-dashes_and_123");
 
-        std::env::remove_var(&special_var);
+        unsafe {
+            std::env::remove_var(&special_var);
+        }
     }
 
     #[test]
     fn test_expand_nested_vars_not_supported() {
         let outer_var = generate_test_var_name("OUTER");
         let inner_var = generate_test_var_name("INNER");
-        std::env::set_var(&outer_var, "${INNER}");
-        std::env::set_var(&inner_var, "inner_value");
+        unsafe {
+            std::env::set_var(&outer_var, "${INNER}");
+        }
+        unsafe {
+            std::env::set_var(&inner_var, "inner_value");
+        }
 
         let input = format!("value: ${{{}}}", outer_var);
         let result = expand_env_var(&input).unwrap();
         // Should not expand nested - literal ${INNER}
         assert_eq!(result, "value: ${INNER}");
 
-        std::env::remove_var(&outer_var);
-        std::env::remove_var(&inner_var);
+        unsafe {
+            std::env::remove_var(&outer_var);
+        }
+        unsafe {
+            std::env::remove_var(&inner_var);
+        }
     }
 
     #[test]
     fn test_var_name_validation() {
         // Test valid variable names
         let valid_var = generate_test_var_name("VALID_VAR");
-        std::env::set_var(&valid_var, "value");
+        unsafe {
+            std::env::set_var(&valid_var, "value");
+        }
         let result = expand_env_var(&format!("${{{}}}", valid_var)).unwrap();
         assert_eq!(result, "value");
-        std::env::remove_var(&valid_var);
+        unsafe {
+            std::env::remove_var(&valid_var);
+        }
 
         // Test underscore start
         let underscore_var = generate_test_var_name("_UNDERSCORE");
-        std::env::set_var(&underscore_var, "value");
+        unsafe {
+            std::env::set_var(&underscore_var, "value");
+        }
         let result = expand_env_var(&format!("${{{}}}", underscore_var)).unwrap();
         assert_eq!(result, "value");
-        std::env::remove_var(&underscore_var);
+        unsafe {
+            std::env::remove_var(&underscore_var);
+        }
 
         // Test numbers in name
         let var123 = generate_test_var_name("VAR123");
-        std::env::set_var(&var123, "value");
+        unsafe {
+            std::env::set_var(&var123, "value");
+        }
         let result = expand_env_var(&format!("${{{}}}", var123)).unwrap();
         assert_eq!(result, "value");
-        std::env::remove_var(&var123);
+        unsafe {
+            std::env::remove_var(&var123);
+        }
     }
 }

@@ -9,9 +9,9 @@ pub fn remove_old_droplets(gauge: &prometheus::GaugeVec, valid_droplets: &HashSe
         .filter(|m| {
             m.get_label()
                 .iter()
-                .find(|label| label.get_name() == "droplet")
+                .find(|label| label.name() == "droplet")
                 .iter()
-                .all(|label| !valid_droplets.contains(label.get_value()))
+                .all(|label| !valid_droplets.contains(label.value()))
         })
         .collect();
 
@@ -19,7 +19,7 @@ pub fn remove_old_droplets(gauge: &prometheus::GaugeVec, valid_droplets: &HashSe
         let labels: std::collections::HashMap<_, _> = m
             .get_label()
             .iter()
-            .map(|l| (l.get_name(), l.get_value()))
+            .map(|l| (l.name(), l.value()))
             .collect();
 
         let _ = gauge.remove(&labels);
@@ -34,9 +34,9 @@ pub fn remove_old_apps_for_gauge_metric(gauge: &prometheus::GaugeVec, valid_apps
         .filter(|m| {
             m.get_label()
                 .iter()
-                .find(|label| label.get_name() == "app")
+                .find(|label| label.name() == "app")
                 .iter()
-                .all(|label| !valid_apps.contains(label.get_value()))
+                .all(|label| !valid_apps.contains(label.value()))
         })
         .collect();
 
@@ -44,7 +44,7 @@ pub fn remove_old_apps_for_gauge_metric(gauge: &prometheus::GaugeVec, valid_apps
         let labels: std::collections::HashMap<_, _> = m
             .get_label()
             .iter()
-            .map(|l| (l.get_name(), l.get_value()))
+            .map(|l| (l.name(), l.value()))
             .collect();
 
         let _ = gauge.remove(&labels);
@@ -62,9 +62,9 @@ pub fn remove_old_apps_for_counter_metric(
         .filter(|m| {
             m.get_label()
                 .iter()
-                .find(|label| label.get_name() == "app")
+                .find(|label| label.name() == "app")
                 .iter()
-                .all(|label| !valid_apps.contains(label.get_value()))
+                .all(|label| !valid_apps.contains(label.value()))
         })
         .collect();
 
@@ -72,7 +72,7 @@ pub fn remove_old_apps_for_counter_metric(
         let labels: std::collections::HashMap<_, _> = m
             .get_label()
             .iter()
-            .map(|l| (l.get_name(), l.get_value()))
+            .map(|l| (l.name(), l.value()))
             .collect();
 
         let _ = counter.remove(&labels);
@@ -130,8 +130,8 @@ mod tests {
 
         let droplet_names: HashSet<_> = metrics
             .iter()
-            .filter_map(|m| m.get_label().iter().find(|l| l.get_name() == "droplet"))
-            .map(|l| l.get_value())
+            .filter_map(|m| m.get_label().iter().find(|l| l.name() == "droplet"))
+            .map(|l| l.value())
             .collect();
 
         assert!(droplet_names.contains(&"droplet-A"));
@@ -164,8 +164,8 @@ mod tests {
 
         let app_names: HashSet<_> = metrics
             .iter()
-            .filter_map(|m| m.get_label().iter().find(|l| l.get_name() == "app"))
-            .map(|l| l.get_value())
+            .filter_map(|m| m.get_label().iter().find(|l| l.name() == "app"))
+            .map(|l| l.value())
             .collect();
 
         assert!(app_names.contains(&"app-1"));
@@ -198,8 +198,8 @@ mod tests {
 
         let app_names: HashSet<_> = metrics
             .iter()
-            .filter_map(|m| m.get_label().iter().find(|l| l.get_name() == "app"))
-            .map(|l| l.get_value())
+            .filter_map(|m| m.get_label().iter().find(|l| l.name() == "app"))
+            .map(|l| l.value())
             .collect();
 
         assert!(app_names.contains(&"app-1"));

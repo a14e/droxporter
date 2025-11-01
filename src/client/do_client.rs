@@ -17,7 +17,7 @@ use super::do_json_protocol::AppDataResponse;
 #[async_trait]
 pub trait DigitalOceanClient: Send + Sync {
     async fn list_droplets(&self, per_page: u64, page: u64)
-        -> anyhow::Result<ListDropletsResponse>;
+    -> anyhow::Result<ListDropletsResponse>;
 
     async fn list_apps(&self, per_page: u64, page: u64) -> anyhow::Result<ListAppsResponse>;
 
@@ -53,6 +53,7 @@ pub trait DigitalOceanClient: Send + Sync {
         end: chrono::DateTime<Utc>,
     ) -> anyhow::Result<DropletDataResponse>;
 
+    #[allow(dead_code)]
     async fn get_droplet_load(
         &self,
         host_id: u64,
@@ -96,6 +97,7 @@ pub enum NetworkInterface {
 }
 
 #[derive(Eq, PartialEq, Copy, Clone)]
+#[allow(dead_code)]
 pub enum ClientLoadType {
     Load1,
     Load5,
@@ -278,8 +280,11 @@ pub enum RequestType {
     DropletFreeMemory,
     DropletTotalMemory,
     DropletAvailableTotalMemory,
+    #[allow(dead_code)]
     DropletLoad1,
+    #[allow(dead_code)]
     DropletLoad5,
+    #[allow(dead_code)]
     DropletLoad15,
     AppCpuPercentage,
     AppMemoryPercentage,

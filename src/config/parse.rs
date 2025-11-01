@@ -79,8 +79,12 @@ invalid_yaml: [
 
     #[test]
     fn test_parse_config_with_env_vars() {
-        std::env::set_var("TEST_PORT", "8888");
-        std::env::set_var("TEST_HOST", "0.0.0.0");
+        unsafe {
+            std::env::set_var("TEST_PORT", "8888");
+        }
+        unsafe {
+            std::env::set_var("TEST_HOST", "0.0.0.0");
+        }
 
         let mut temp_file = NamedTempFile::new().unwrap();
         let config_content = r#"
@@ -98,7 +102,9 @@ endpoint:
         assert_eq!(config.endpoint.host, "0.0.0.0");
 
         // Cleanup
-        std::env::remove_var("TEST_PORT");
-        std::env::remove_var("TEST_HOST");
+        unsafe {
+            std::env::remove_var("TEST_PORT");
+            std::env::remove_var("TEST_HOST");
+        }
     }
 }

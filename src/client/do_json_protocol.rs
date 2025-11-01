@@ -1,5 +1,5 @@
-use serde::de::{SeqAccess, Visitor};
 use serde::Deserialize;
+use serde::de::{SeqAccess, Visitor};
 use std::fmt;
 
 #[derive(Deserialize, PartialEq, Debug)]
@@ -96,6 +96,7 @@ pub struct DropletMetricMetaInfo {
 }
 
 #[derive(Deserialize, PartialEq, Debug)]
+#[allow(dead_code)]
 pub struct DropletMetricMetaDefault {
     pub host_id: String,
 }
@@ -127,6 +128,7 @@ pub struct AppMetricMetaInfo {
 }
 
 #[derive(Deserialize, PartialEq, Debug)]
+#[allow(dead_code)]
 pub struct AppMetricMetaDefault {
     pub app_component: String,
     pub app_component_instance: String,

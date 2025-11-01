@@ -69,7 +69,10 @@ struct AppMetrics {
 impl AppMetrics {
     fn new(registry: prometheus::Registry) -> anyhow::Result<Self> {
         let active_gauge = prometheus::GaugeVec::new(
-            Opts::new("droxporter_app_active_deployment_phase", "The label active_deployment_phase indicates the current phase for the app. Values is always 1."),
+            Opts::new(
+                "droxporter_app_active_deployment_phase",
+                "The label active_deployment_phase indicates the current phase for the app. Values is always 1.",
+            ),
             &["app", "active_deployment_phase"],
         )?;
 
@@ -114,7 +117,11 @@ impl AppStore for AppStoreImpl {
             if enabled_active_deployment_phase {
                 self.metrics
                     .active_gauge
-                    .with(&std::collections::HashMap::from([
+                    .with(&std::collections::HashMap::<
+                        &str,
+                        &str,
+                        std::hash::RandomState,
+                    >::from([
                         ("app", app.name.as_ref()),
                         (
                             "active_deployment_phase",

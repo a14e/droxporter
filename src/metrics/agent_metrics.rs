@@ -2,7 +2,7 @@ use crate::config::config_model::{AgentMetricsType, AppSettings};
 use parking_lot::Mutex;
 use prometheus::{Gauge, Registry};
 use std::sync::Arc;
-use sysinfo::{ProcessExt, System, SystemExt};
+use sysinfo::System;
 
 pub trait AgentMetricsService: Send + Sync {
     fn load_agent_metrics(&self) -> anyhow::Result<()>;

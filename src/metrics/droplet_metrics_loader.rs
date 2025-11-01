@@ -21,6 +21,7 @@ pub trait DropletMetricsService: Send + Sync {
     async fn load_cpu_metrics(&self) -> anyhow::Result<()>;
     async fn load_filesystem_metrics(&self) -> anyhow::Result<()>;
     async fn load_memory_metrics(&self) -> anyhow::Result<()>;
+    #[allow(dead_code)]
     async fn load_load_metrics(&self) -> anyhow::Result<()>;
 }
 
@@ -55,6 +56,7 @@ struct LoaderDropletMetrics {
     droplet_cpu: prometheus::GaugeVec,
     droplet_filesystem: prometheus::GaugeVec,
     droplet_memory: prometheus::GaugeVec,
+    #[allow(dead_code)]
     droplet_load: prometheus::GaugeVec,
 }
 

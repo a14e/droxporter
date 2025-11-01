@@ -74,11 +74,7 @@ impl RateLimiter {
 
         let next_count = next_count.min(self.limit);
 
-        if next_count > 0 {
-            next_count - 1
-        } else {
-            0
-        }
+        if next_count > 0 { next_count - 1 } else { 0 }
     }
 
     pub fn acquire(&mut self, current_time: usize) -> bool {

@@ -15,7 +15,7 @@ use poem::handler;
 use poem::listener::{Listener, RustlsCertificate, RustlsConfig, TcpListener};
 use poem::web::{
     headers,
-    headers::{authorization::Basic, HeaderMapExt},
+    headers::{HeaderMapExt, authorization::Basic},
 };
 use poem::{EndpointExt, Route, Server};
 use prometheus::Registry;

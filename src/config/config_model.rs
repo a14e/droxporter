@@ -274,15 +274,19 @@ pub enum MemoryTypes {
 
 #[derive(Deserialize, Clone, Default, Debug)]
 #[serde(rename_all = "kebab-case")]
+#[allow(dead_code)]
 pub struct LoadSettings {
     #[serde(default)]
+    #[allow(dead_code)]
     pub types: Vec<LoadTypes>,
     #[serde(default)]
     pub keys: Vec<String>,
     #[serde(default = "duration_120_seconds")]
     #[serde(with = "humantime_serde")]
+    #[allow(dead_code)]
     pub interval: std::time::Duration,
     #[serde(default)]
+    #[allow(dead_code)]
     pub enabled: bool,
 }
 

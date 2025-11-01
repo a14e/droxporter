@@ -168,37 +168,44 @@ impl DropletStore for DropletStoreImpl {
             if enabled_memory {
                 self.metrics
                     .memory_gauge
-                    .with(&std::collections::HashMap::from([(
-                        "droplet",
-                        name.as_ref(),
-                    )]))
+                    .with(&std::collections::HashMap::<
+                        &str,
+                        &str,
+                        std::hash::RandomState,
+                    >::from([("droplet", name.as_ref())]))
                     .set(droplet.memory as f64);
             }
 
             if enabled_vcpu {
                 self.metrics
                     .vcpu_gauge
-                    .with(&std::collections::HashMap::from([(
-                        "droplet",
-                        name.as_ref(),
-                    )]))
+                    .with(&std::collections::HashMap::<
+                        &str,
+                        &str,
+                        std::hash::RandomState,
+                    >::from([("droplet", name.as_ref())]))
                     .set(droplet.vcpus as f64);
             }
 
             if enabled_disc {
                 self.metrics
                     .disk_gauge
-                    .with(&std::collections::HashMap::from([(
-                        "droplet",
-                        name.as_ref(),
-                    )]))
+                    .with(&std::collections::HashMap::<
+                        &str,
+                        &str,
+                        std::hash::RandomState,
+                    >::from([("droplet", name.as_ref())]))
                     .set(droplet.disk as f64);
             }
 
             if enabled_status {
                 self.metrics
                     .status_gauge
-                    .with(&std::collections::HashMap::from([
+                    .with(&std::collections::HashMap::<
+                        &str,
+                        &str,
+                        std::hash::RandomState,
+                    >::from([
                         ("droplet", name.as_ref()),
                         ("status", droplet.status.as_ref()),
                     ]))
