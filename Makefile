@@ -1,6 +1,6 @@
 # Simple Makefile for droxporter
 
-.PHONY: fmt test clippy build run clean
+.PHONY: fmt test clippy build run clean check all help
 
 # Format code
 fmt:

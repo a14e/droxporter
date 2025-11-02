@@ -412,3 +412,326 @@ impl DropletMetricsService for DropletMetricsServiceImpl {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::client::do_client::MockDigitalOceanClient;
+    use crate::client::do_json_protocol::{
+        DropletDataResponse, DropletDataResult, DropletMetricMetaInfo, DropletMetricsResponse,
+        MetricPoint,
+    };
+    use crate::config::config_model::{
+        AppSettings, BandwidthSettings, BandwidthType, CpuSettings, FilesystemSettings,
+        FilesystemTypes, MemorySettings, MemoryTypes,
+    };
+    use crate::metrics::droplet_store::{BasicDropletInfo, MockDropletStore};
+    use std::time::Duration as StdDuration;
+
+    fn create_test_config() -> &'static AppSettings {
+        let config = AppSettings {
+            default_keys: vec!["test-key".to_string()],
+            droplets: crate::config::config_model::DropletSettings {
+                keys: vec![],
+                url: "http://test.com/droplets".to_string(),
+                interval: StdDuration::from_secs(60),
+                metrics: vec![],
+            },
+            apps: crate::config::config_model::AppPlatformSettings {
+                keys: vec![],
+                url: "http://test.com/apps".to_string(),
+                interval: StdDuration::from_secs(60),
+                metrics: vec![],
+            },
+            droplet_metrics: crate::config::config_model::DropletMetricsConfig {
+                base_url: "http://test.com/metrics".to_string(),
+                bandwidth: Some(BandwidthSettings {
+                    enabled: true,
+                    interval: StdDuration::from_secs(60),
+                    types: vec![BandwidthType::PublicInbound],
+                    keys: vec![],
+                }),
+                cpu: Some(CpuSettings {
+                    enabled: true,
+                    interval: StdDuration::from_secs(60),
+                    keys: vec![],
+                }),
+                filesystem: Some(FilesystemSettings {
+                    enabled: true,
+                    interval: StdDuration::from_secs(60),
+                    types: vec![FilesystemTypes::Free],
+                    keys: vec![],
+                }),
+                memory: Some(MemorySettings {
+                    enabled: false,
+                    interval: StdDuration::from_secs(60),
+                    types: vec![MemoryTypes::Free],
+                    keys: vec![],
+                }),
+                load: None,
+            },
+            app_metrics: crate::config::config_model::AppMetricsConfig {
+                base_url: "http://test.com/app_metrics".to_string(),
+                cpu_percentage: None,
+                memory_percentage: None,
+                restart_count: None,
+            },
+            exporter_metrics: crate::config::config_model::ExporterMetricsConfigs {
+                enabled: false,
+                interval: StdDuration::from_secs(60),
+                metrics: vec![],
+            },
+            endpoint: crate::config::config_model::EndpointConfig {
+                port: 8888,
+                host: "0.0.0.0".to_string(),
+                auth: None,
+                ssl: None,
+            },
+            custom: crate::config::config_model::CustomSettings {
+                prefix: None,
+                labels: std::collections::HashMap::new(),
+            },
+        };
+        Box::leak(Box::new(config))
+    }
+
+    #[tokio::test]
+    async fn test_load_cpu_metrics_success() {
+        let mut mock_client = MockDigitalOceanClient::new();
+        let mut mock_store = MockDropletStore::new();
+
+        let droplets = vec![BasicDropletInfo {
+            id: 123,
+            name: "test-droplet".to_string(),
+            memory: 2048,
+            vcpus: 2,
+            disk: 50,
+            locked: false,
+            status: "active".to_string(),
+        }];
+
+        mock_store
+            .expect_list_droplets()
+            .times(2)
+            .returning(move || droplets.clone());
+
+        mock_client
+            .expect_get_droplet_cpu()
+            .withf(|id, _start, _end| *id == 123)
+            .times(1)
+            .returning(|_, _, _| {
+                Ok(DropletDataResponse {
+                    status: "success".to_string(),
+                    data: DropletDataResult {
+                        result: vec![DropletMetricsResponse {
+                            metric: DropletMetricMetaInfo {
+                                host_id: "123".to_string(),
+                                mode: Some("idle".to_string()),
+                                ..Default::default()
+                            },
+                            values: vec![MetricPoint {
+                                timestamp: 1682246520,
+                                value: "95.5".to_string(),
+                            }],
+                        }],
+                    },
+                })
+            });
+
+        let config = create_test_config();
+        let registry = prometheus::Registry::new();
+
+        let service = DropletMetricsServiceImpl::new(
+            Arc::new(mock_client),
+            Arc::new(mock_store),
+            config,
+            registry,
+        )
+        .unwrap();
+
+        let result = service.load_cpu_metrics().await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_load_bandwidth_success() {
+        let mut mock_client = MockDigitalOceanClient::new();
+        let mut mock_store = MockDropletStore::new();
+
+        let droplets = vec![BasicDropletInfo {
+            id: 456,
+            name: "test-droplet-2".to_string(),
+            memory: 4096,
+            vcpus: 4,
+            disk: 100,
+            locked: false,
+            status: "active".to_string(),
+        }];
+
+        mock_store
+            .expect_list_droplets()
+            .times(2)
+            .returning(move || droplets.clone());
+
+        mock_client
+            .expect_get_droplet_bandwidth()
+            .withf(|id, interface, direction, _start, _end| {
+                *id == 456
+                    && *interface == NetworkInterface::Public
+                    && *direction == NetworkDirection::Inbound
+            })
+            .times(1)
+            .returning(|_, _, _, _, _| {
+                Ok(DropletDataResponse {
+                    status: "success".to_string(),
+                    data: DropletDataResult {
+                        result: vec![DropletMetricsResponse {
+                            metric: DropletMetricMetaInfo {
+                                host_id: "456".to_string(),
+                                ..Default::default()
+                            },
+                            values: vec![MetricPoint {
+                                timestamp: 1682246520,
+                                value: "1024.5".to_string(),
+                            }],
+                        }],
+                    },
+                })
+            });
+
+        let config = create_test_config();
+        let registry = prometheus::Registry::new();
+
+        let service = DropletMetricsServiceImpl::new(
+            Arc::new(mock_client),
+            Arc::new(mock_store),
+            config,
+            registry,
+        )
+        .unwrap();
+
+        let result = service.load_bandwidth().await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_load_memory_metrics_success() {
+        let mut mock_client = MockDigitalOceanClient::new();
+        let mut mock_store = MockDropletStore::new();
+
+        let droplets = vec![BasicDropletInfo {
+            id: 789,
+            name: "test-droplet-3".to_string(),
+            memory: 8192,
+            vcpus: 8,
+            disk: 200,
+            locked: false,
+            status: "active".to_string(),
+        }];
+
+        mock_store
+            .expect_list_droplets()
+            .times(2)
+            .returning(move || droplets.clone());
+
+        mock_client
+            .expect_get_droplet_memory()
+            .withf(|id, metric_type, _start, _end| {
+                *id == 789 && matches!(metric_type, MemoryRequest::Free)
+            })
+            .times(1)
+            .returning(|_, _, _, _| {
+                Ok(DropletDataResponse {
+                    status: "success".to_string(),
+                    data: DropletDataResult {
+                        result: vec![DropletMetricsResponse {
+                            metric: DropletMetricMetaInfo {
+                                host_id: "789".to_string(),
+                                ..Default::default()
+                            },
+                            values: vec![MetricPoint {
+                                timestamp: 1682246520,
+                                value: "512000000".to_string(),
+                            }],
+                        }],
+                    },
+                })
+            });
+
+        let config = create_test_config();
+        let registry = prometheus::Registry::new();
+
+        let service = DropletMetricsServiceImpl::new(
+            Arc::new(mock_client),
+            Arc::new(mock_store),
+            config,
+            registry,
+        )
+        .unwrap();
+
+        let result = service.load_memory_metrics().await;
+        assert!(result.is_ok());
+    }
+
+    #[tokio::test]
+    async fn test_load_filesystem_metrics_success() {
+        let mut mock_client = MockDigitalOceanClient::new();
+        let mut mock_store = MockDropletStore::new();
+
+        let droplets = vec![BasicDropletInfo {
+            id: 999,
+            name: "test-droplet-4".to_string(),
+            memory: 1024,
+            vcpus: 1,
+            disk: 25,
+            locked: false,
+            status: "active".to_string(),
+        }];
+
+        mock_store
+            .expect_list_droplets()
+            .times(2)
+            .returning(move || droplets.clone());
+
+        mock_client
+            .expect_get_droplet_file_system()
+            .withf(|id, fs_type, _start, _end| {
+                *id == 999 && matches!(fs_type, FileSystemRequest::Free)
+            })
+            .times(1)
+            .returning(|_, _, _, _| {
+                Ok(DropletDataResponse {
+                    status: "success".to_string(),
+                    data: DropletDataResult {
+                        result: vec![DropletMetricsResponse {
+                            metric: DropletMetricMetaInfo {
+                                host_id: "999".to_string(),
+                                device: Some("/dev/vda1".to_string()),
+                                fstype: Some("ext4".to_string()),
+                                mountpoint: Some("/".to_string()),
+                                ..Default::default()
+                            },
+                            values: vec![MetricPoint {
+                                timestamp: 1682246520,
+                                value: "10000000000".to_string(),
+                            }],
+                        }],
+                    },
+                })
+            });
+
+        let config = create_test_config();
+        let registry = prometheus::Registry::new();
+
+        let service = DropletMetricsServiceImpl::new(
+            Arc::new(mock_client),
+            Arc::new(mock_store),
+            config,
+            registry,
+        )
+        .unwrap();
+
+        let result = service.load_filesystem_metrics().await;
+        assert!(result.is_ok());
+    }
+}

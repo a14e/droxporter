@@ -14,6 +14,7 @@ use url::Url;
 
 use super::do_json_protocol::AppDataResponse;
 
+#[cfg_attr(test, mockall::automock)]
 #[async_trait]
 pub trait DigitalOceanClient: Send + Sync {
     async fn list_droplets(&self, per_page: u64, page: u64)
@@ -550,5 +551,292 @@ impl DigitalOceanClient for DigitalOceanClientImpl {
     ) -> anyhow::Result<AppDataResponse> {
         self.base_app_metrics_request(RequestType::AppRestartCount, app_id, start, end)
             .await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::client::key_manager::KeyManagerImpl;
+    use crate::config::config_model::AppSettings;
+    use mockito::Server;
+    use std::time::Duration;
+
+    fn create_test_config(server_url: &str) -> &'static AppSettings {
+        let config = AppSettings {
+            default_keys: vec!["test-api-key".to_string()],
+            droplets: crate::config::config_model::DropletSettings {
+                keys: vec![],
+                url: format!("{}/v2/droplets", server_url),
+                interval: Duration::from_secs(60),
+                metrics: vec![],
+            },
+            apps: crate::config::config_model::AppPlatformSettings {
+                keys: vec![],
+                url: format!("{}/v2/apps", server_url),
+                interval: Duration::from_secs(60),
+                metrics: vec![],
+            },
+            droplet_metrics: crate::config::config_model::DropletMetricsConfig {
+                base_url: format!("{}/v2/monitoring/metrics/droplet", server_url),
+                bandwidth: Some(crate::config::config_model::BandwidthSettings {
+                    enabled: true,
+                    interval: Duration::from_secs(60),
+                    types: vec![],
+                    keys: vec![],
+                }),
+                cpu: Some(crate::config::config_model::CpuSettings {
+                    enabled: true,
+                    interval: Duration::from_secs(60),
+                    keys: vec![],
+                }),
+                filesystem: Some(crate::config::config_model::FilesystemSettings {
+                    enabled: true,
+                    interval: Duration::from_secs(60),
+                    types: vec![],
+                    keys: vec![],
+                }),
+                memory: Some(crate::config::config_model::MemorySettings {
+                    enabled: false,
+                    interval: Duration::from_secs(60),
+                    types: vec![],
+                    keys: vec![],
+                }),
+                load: None,
+            },
+            app_metrics: crate::config::config_model::AppMetricsConfig {
+                base_url: format!("{}/v2/monitoring/metrics/apps", server_url),
+                cpu_percentage: Some(crate::config::config_model::AppCpuPercentageSettings {
+                    enabled: true,
+                    interval: Duration::from_secs(60),
+                    keys: vec![],
+                }),
+                memory_percentage: Some(crate::config::config_model::AppMemoryPercentageSettings {
+                    enabled: true,
+                    interval: Duration::from_secs(60),
+                    keys: vec![],
+                }),
+                restart_count: Some(crate::config::config_model::AppRestartCountSettings {
+                    enabled: true,
+                    interval: Duration::from_secs(60),
+                    keys: vec![],
+                }),
+            },
+            exporter_metrics: crate::config::config_model::ExporterMetricsConfigs {
+                enabled: false,
+                interval: Duration::from_secs(60),
+                metrics: vec![],
+            },
+            endpoint: crate::config::config_model::EndpointConfig {
+                port: 8888,
+                host: "0.0.0.0".to_string(),
+                auth: None,
+                ssl: None,
+            },
+            custom: crate::config::config_model::CustomSettings {
+                prefix: None,
+                labels: std::collections::HashMap::new(),
+            },
+        };
+        Box::leak(Box::new(config))
+    }
+
+    #[tokio::test]
+    async fn test_list_droplets_success() {
+        let mut server = Server::new_async().await;
+        let mock = server
+            .mock("GET", "/v2/droplets?per_page=100&page=1")
+            .match_header("authorization", "Bearer test-api-key")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"droplets":[{"id":123,"name":"test-droplet","memory":2048,"vcpus":1,"disk":50,"locked":false,"status":"active"}],"links":{"pages":{}}}"#)
+            .create_async()
+            .await;
+
+        let config = create_test_config(&server.url());
+        let client = reqwest::Client::new();
+        let key_registry = prometheus::Registry::new();
+        let key_manager = KeyManagerImpl::new(config, key_registry).unwrap();
+        let registry = prometheus::Registry::new();
+
+        let do_client =
+            DigitalOceanClientImpl::new(config, client, Arc::new(key_manager), registry).unwrap();
+
+        let result = do_client.list_droplets(100, 1).await;
+        mock.assert_async().await;
+
+        assert!(result.is_ok());
+        let response = result.unwrap();
+        assert_eq!(response.droplets.len(), 1);
+        assert_eq!(response.droplets[0].id, 123);
+        assert_eq!(response.droplets[0].name, "test-droplet");
+    }
+
+    #[tokio::test]
+    async fn test_list_droplets_http_error() {
+        let mut server = Server::new_async().await;
+        let mock = server
+            .mock("GET", "/v2/droplets?per_page=100&page=1")
+            .match_header("authorization", "Bearer test-api-key")
+            .with_status(401)
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"message":"Unauthorized"}"#)
+            .create_async()
+            .await;
+
+        let config = create_test_config(&server.url());
+        let client = reqwest::Client::new();
+        let key_registry = prometheus::Registry::new();
+        let key_manager = KeyManagerImpl::new(config, key_registry).unwrap();
+        let registry = prometheus::Registry::new();
+
+        let do_client =
+            DigitalOceanClientImpl::new(config, client, Arc::new(key_manager), registry).unwrap();
+
+        let result = do_client.list_droplets(100, 1).await;
+        mock.assert_async().await;
+
+        assert!(result.is_err());
+        let err = result.unwrap_err();
+        assert!(err.to_string().contains("401"));
+    }
+
+    #[tokio::test]
+    async fn test_get_droplet_cpu_success() {
+        let mut server = Server::new_async().await;
+        let mock = server
+            .mock("GET", mockito::Matcher::Regex(r"^/v2/monitoring/metrics/droplet/cpu\?host_id=123&start=\d+&end=\d+$".to_string()))
+            .match_header("authorization", "Bearer test-api-key")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"status":"success","data":{"result":[{"metric":{"host_id":"123","mode":"idle"},"values":[[1682246520,"95.5"]]}]}}"#)
+            .create_async()
+            .await;
+
+        let config = create_test_config(&server.url());
+        let client = reqwest::Client::new();
+        let key_registry = prometheus::Registry::new();
+        let key_manager = KeyManagerImpl::new(config, key_registry).unwrap();
+        let registry = prometheus::Registry::new();
+
+        let do_client =
+            DigitalOceanClientImpl::new(config, client, Arc::new(key_manager), registry).unwrap();
+
+        let start = chrono::Utc::now() - chrono::Duration::minutes(5);
+        let end = chrono::Utc::now();
+
+        let result = do_client.get_droplet_cpu(123, start, end).await;
+        mock.assert_async().await;
+
+        assert!(result.is_ok());
+        let response = result.unwrap();
+        assert_eq!(response.status, "success");
+        assert_eq!(response.data.result.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_get_droplet_bandwidth_success() {
+        let mut server = Server::new_async().await;
+        let mock = server
+            .mock("GET", mockito::Matcher::Regex(r"^/v2/monitoring/metrics/droplet/bandwidth\?host_id=123&interface=public&direction=inbound&start=\d+&end=\d+$".to_string()))
+            .match_header("authorization", "Bearer test-api-key")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"status":"success","data":{"result":[{"metric":{"host_id":"123"},"values":[[1682246520,"1024.5"]]}]}}"#)
+            .create_async()
+            .await;
+
+        let config = create_test_config(&server.url());
+        let client = reqwest::Client::new();
+        let key_registry = prometheus::Registry::new();
+        let key_manager = KeyManagerImpl::new(config, key_registry).unwrap();
+        let registry = prometheus::Registry::new();
+
+        let do_client =
+            DigitalOceanClientImpl::new(config, client, Arc::new(key_manager), registry).unwrap();
+
+        let start = chrono::Utc::now() - chrono::Duration::minutes(5);
+        let end = chrono::Utc::now();
+
+        let result = do_client
+            .get_droplet_bandwidth(
+                123,
+                NetworkInterface::Public,
+                NetworkDirection::Inbound,
+                start,
+                end,
+            )
+            .await;
+        mock.assert_async().await;
+
+        assert!(result.is_ok());
+        let response = result.unwrap();
+        assert_eq!(response.status, "success");
+    }
+
+    #[tokio::test]
+    async fn test_list_apps_success() {
+        let mut server = Server::new_async().await;
+        let mock = server
+            .mock("GET", "/v2/apps?per_page=50&page=1")
+            .match_header("authorization", "Bearer test-api-key")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"apps":[{"id":"app-123","spec":{"name":"test-app"},"active_deployment":{"id":"dep-1","cause":"manual","phase":"ACTIVE"}}],"links":{"pages":{}}}"#)
+            .create_async()
+            .await;
+
+        let config = create_test_config(&server.url());
+        let client = reqwest::Client::new();
+        let key_registry = prometheus::Registry::new();
+        let key_manager = KeyManagerImpl::new(config, key_registry).unwrap();
+        let registry = prometheus::Registry::new();
+
+        let do_client =
+            DigitalOceanClientImpl::new(config, client, Arc::new(key_manager), registry).unwrap();
+
+        let result = do_client.list_apps(50, 1).await;
+        mock.assert_async().await;
+
+        assert!(result.is_ok());
+        let response = result.unwrap();
+        assert_eq!(response.apps.len(), 1);
+        assert_eq!(response.apps[0].id, "app-123");
+        assert_eq!(response.apps[0].spec.name, "test-app");
+    }
+
+    #[tokio::test]
+    async fn test_get_droplet_memory_success() {
+        let mut server = Server::new_async().await;
+        let mock = server
+            .mock("GET", mockito::Matcher::Regex(r"^/v2/monitoring/metrics/droplet/memory_free\?host_id=456&start=\d+&end=\d+$".to_string()))
+            .match_header("authorization", "Bearer test-api-key")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"status":"success","data":{"result":[{"metric":{"host_id":"456"},"values":[[1682246520,"512000000"]]}]}}"#)
+            .create_async()
+            .await;
+
+        let config = create_test_config(&server.url());
+        let client = reqwest::Client::new();
+        let key_registry = prometheus::Registry::new();
+        let key_manager = KeyManagerImpl::new(config, key_registry).unwrap();
+        let registry = prometheus::Registry::new();
+
+        let do_client =
+            DigitalOceanClientImpl::new(config, client, Arc::new(key_manager), registry).unwrap();
+
+        let start = chrono::Utc::now() - chrono::Duration::minutes(30);
+        let end = chrono::Utc::now();
+
+        let result = do_client
+            .get_droplet_memory(456, MemoryRequest::Free, start, end)
+            .await;
+        mock.assert_async().await;
+
+        assert!(result.is_ok());
+        let response = result.unwrap();
+        assert_eq!(response.status, "success");
+        assert_eq!(response.data.result.len(), 1);
     }
 }
