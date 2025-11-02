@@ -106,7 +106,7 @@ impl ToMillis for u64 {
 
 impl ToMillis for i32 {
     fn to_millis(&self) -> usize {
-        *self as usize
+        (*self).max(0) as usize
     }
 }
 

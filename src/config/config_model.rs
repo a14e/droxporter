@@ -341,7 +341,7 @@ fn duration_1_hour() -> std::time::Duration {
 }
 
 fn duration_5_seconds() -> std::time::Duration {
-    std::time::Duration::from_secs(60)
+    std::time::Duration::from_secs(5)
 }
 
 fn duration_60_seconds() -> std::time::Duration {

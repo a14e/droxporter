@@ -167,7 +167,7 @@ impl KeyManagerState {
     fn acquire_key(&mut self, key_type: KeyType) -> anyhow::Result<String> {
         let current_time = Utc::now();
 
-        let key_result = match self.keys.get(&key_type) {
+        let key_result: anyhow::Result<String> = match self.keys.get(&key_type) {
             None if key_type == KeyType::Default => anyhow::bail!("Api Key Not Found"),
             None => {
                 // return is important here to prevent double acquiring
@@ -188,7 +188,10 @@ impl KeyManagerState {
                     None if key_type == KeyType::Default => {
                         anyhow::bail!("Available Api Key Not Found Or Limit exceeded")
                     }
-                    None => self.acquire_key(KeyType::Default),
+                    None => {
+                        // return is important here to prevent recording error for wrong key type
+                        return self.acquire_key(KeyType::Default);
+                    }
                     Some((key, _)) => Ok(key.clone()),
                 }
             }

@@ -47,7 +47,7 @@ async fn prometheus_endpoint(
             .headers()
             .typed_get::<headers::Authorization<Basic>>()
         {
-            if auth.username() != creds.login && auth.password() != creds.password {
+            if auth.username() != creds.login || auth.password() != creds.password {
                 return Err(poem::Error::from_status(StatusCode::UNAUTHORIZED));
             }
         } else {
@@ -154,12 +154,12 @@ async fn main() -> anyhow::Result<()> {
         Server::new(listener).run(route).await?;
     } else {
         info!("Ssl is enabled");
-        let config = configs
+        let ssl_config = configs
             .endpoint
             .ssl
             .as_ref()
-            .unwrap_or_else(|| unreachable!());
-        let config = create_poem_tls_config(config)?;
+            .ok_or_else(|| anyhow::anyhow!("SSL enabled but configuration is missing"))?;
+        let config = create_poem_tls_config(ssl_config)?;
         let listener = TcpListener::bind(bind_address).rustls(config);
         Server::new(listener).run(route).await?;
     }

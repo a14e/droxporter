@@ -333,7 +333,7 @@ impl DropletMetricsService for DropletMetricsServiceImpl {
         .collect();
 
         let interval_end = Utc::now();
-        let interval_start = interval_end - Duration::minutes(30);
+        let interval_start = interval_end - metrics_read_interval();
 
         for droplet in self.droplet_store.list_droplets().iter() {
             for memory_type in &memory_types {
@@ -382,7 +382,7 @@ impl DropletMetricsService for DropletMetricsServiceImpl {
         .collect();
 
         let interval_end = Utc::now();
-        let interval_start = interval_end - Duration::minutes(30);
+        let interval_start = interval_end - metrics_read_interval();
 
         for droplet in self.droplet_store.list_droplets().iter() {
             for load_type in &load_types {

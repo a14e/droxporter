@@ -6,7 +6,7 @@ use crate::metrics::droplet_metrics_loader::DropletMetricsService;
 use crate::metrics::droplet_store::DropletStore;
 use crate::metrics::utils::DROXPORTER_DEFAULT_BUCKETS;
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Duration as ChronoDuration, Utc};
 use prometheus::{HistogramOpts, Opts, Registry};
 use std::sync::Arc;
 use std::time::Duration;
@@ -424,10 +424,15 @@ impl MetricsScheduler for MetricsSchedulerImpl {
 
                 // app_restart_count is a counter, so we keep track about which
                 // interval we have queried last time in order to not overlap.
-                let interval_end = Utc::now() - Duration::from_secs(1);
-                let interval_start = last_interval_end.unwrap_or(interval_end);
+                let interval_end = Utc::now() - ChronoDuration::seconds(1);
+                let interval_start = last_interval_end.unwrap_or_else(|| {
+                    // On first run, query data for the configured interval
+                    let chrono_interval = ChronoDuration::from_std(app_restart_count.interval)
+                        .unwrap_or_else(|_| ChronoDuration::hours(1));
+                    interval_end - chrono_interval
+                });
 
-                last_interval_end = Some(interval_end + Duration::from_secs(1));
+                last_interval_end = Some(interval_end + ChronoDuration::seconds(1));
 
                 if let Err(e) = self
                     .app_metrics_service
